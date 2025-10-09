@@ -1,0 +1,23 @@
+<resources>
+    <string name="app_name">Your App Name</string>
+    <string name="email_hint">Email</string>
+    <string name="password_hint">Password</string>
+    <string name="login">Login</string>
+
+    <!-- Signup Activity -->
+    <string name="create_account_title">Create account</string>
+    <string name="full_name_hint">Full name</string>
+    <string name="phone_number_hint">Phone number</string>
+    <string name="confirm_password_hint">Confirm password</string>
+    <string name="event_description_hint">Describe what kind of events you like</string>
+    <string name="role_user">User</string>
+    <string name="role_admin">Admin</string>
+    <string name="terms_agreement">I agree to the Terms and Privacy</string>
+    <string name="create_account_button">Create account</string>
+    <string name="already_have_account">Already have an account? Sign in</string>
+
+    <!-- Login Activity -->
+    <string name="welcome_back">Welcome Back</string>
+    <string name="forgot_password">Forgot password?</string>
+    <string name="no_account_signup">Don\'t have an account? Sign up</string>
+</resources>
