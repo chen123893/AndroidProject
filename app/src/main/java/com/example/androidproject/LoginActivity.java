@@ -153,7 +153,7 @@ public class LoginActivity extends AppCompatActivity {
 
     private void checkUserRole(String uid) {
         // Check Admin collection first
-        db.collection("Admin").document(uid).get()
+        db.collection("admin").document(uid).get()
                 .addOnSuccessListener(adminDoc -> {
                     if (adminDoc.exists()) {
                         Intent intent = new Intent(LoginActivity.this, AdminProfileActivity.class);
@@ -162,7 +162,7 @@ public class LoginActivity extends AppCompatActivity {
                         finish();
                     } else {
                         // Check User collection next
-                        db.collection("User").document(uid).get()
+                        db.collection("user").document(uid).get()
                                 .addOnSuccessListener(userDoc -> {
                                     if (userDoc.exists()) {
                                         Intent intent = new Intent(LoginActivity.this, AdminProfileActivity.class);  //MUST CHANGE TO USER

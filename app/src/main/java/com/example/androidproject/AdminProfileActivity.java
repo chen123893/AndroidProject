@@ -114,7 +114,7 @@ public class AdminProfileActivity extends AppCompatActivity {
     }
 
     private void loadAdminProfile(String uid) {
-        db.collection("Admin").document(uid)
+        db.collection("admin").document(uid)
                 .get()
                 .addOnSuccessListener(documentSnapshot -> {
                     if (documentSnapshot.exists()) {
