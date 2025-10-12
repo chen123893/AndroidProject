@@ -14,6 +14,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.FirebaseFirestore;
 
 public class LoginActivity extends AppCompatActivity {
 
@@ -24,14 +25,16 @@ public class LoginActivity extends AppCompatActivity {
 
     // Firebase Authentication
     private FirebaseAuth mAuth;
+    private FirebaseFirestore db;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_login);
 
-        // Initialize Firebase Auth
+        // Initialize Firebase Auth and Firestore
         mAuth = FirebaseAuth.getInstance();
+        db = FirebaseFirestore.getInstance();
 
         // Initialize views
         etEmail = findViewById(R.id.et_email);
@@ -57,70 +60,9 @@ public class LoginActivity extends AppCompatActivity {
     @Override
     protected void onStart() {
         super.onStart();
-        // Check if user is already signed in
-        FirebaseUser currentUser = mAuth.getCurrentUser();
-        if (currentUser != null) {
-            // User is already logged in, navigate to home
-            navigateToHome();
-        }
+        mAuth.signOut(); // force logout
     }
 
-    private void handleLogin() {
-        String email = etEmail.getText() != null ? etEmail.getText().toString().trim() : "";
-        String password = etPassword.getText() != null ? etPassword.getText().toString().trim() : "";
-
-        // Validate input
-        if (email.isEmpty()) {
-            etEmail.setError("Email is required");
-            etEmail.requestFocus();
-            return;
-        }
-        if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-            etEmail.setError("Enter a valid email");
-            etEmail.requestFocus();
-            return;
-        }
-        if (password.isEmpty()) {
-            etPassword.setError("Password is required");
-            etPassword.requestFocus();
-            return;
-        }
-        if (password.length() < 6) {
-            etPassword.setError("Password must be at least 6 characters");
-            etPassword.requestFocus();
-            return;
-        }
-
-        // Show loading
-        progressBar.setVisibility(View.VISIBLE);
-        btnLogin.setEnabled(false);
-
-        // Firebase Authentication - Sign in
-        mAuth.signInWithEmailAndPassword(email, password)
-                .addOnCompleteListener(this, task -> {
-                    progressBar.setVisibility(View.GONE);
-                    btnLogin.setEnabled(true);
-
-                    if (task.isSuccessful()) {
-                        // Sign in success
-                        FirebaseUser user = mAuth.getCurrentUser();
-                        Toast.makeText(LoginActivity.this,
-                                "Welcome back, " + user.getEmail(),
-                                Toast.LENGTH_SHORT).show();
-
-                        // Navigate to home screen
-                        navigateToHome();
-                    } else {
-                        // Sign in failed
-                        String errorMessage = task.getException() != null
-                                ? task.getException().getMessage()
-                                : "Authentication failed";
-                        Toast.makeText(LoginActivity.this,
-                                errorMessage,
-                                Toast.LENGTH_LONG).show();
-                    }
-                });
-    }
 
     private void handleForgotPassword() {
         String email = etEmail.getText() != null ? etEmail.getText().toString().trim() : "";
@@ -159,8 +101,87 @@ public class LoginActivity extends AppCompatActivity {
                 });
     }
 
-    private void navigateToHome() {
-        Toast.makeText(this, "Login successful! Create HomeActivity next.", Toast.LENGTH_SHORT).show();
+    private void handleLogin() {
+        String email = etEmail.getText() != null ? etEmail.getText().toString().trim() : "";
+        String password = etPassword.getText() != null ? etPassword.getText().toString().trim() : "";
 
+        if (email.isEmpty()) {
+            etEmail.setError("Email is required");
+            etEmail.requestFocus();
+            return;
+        }
+        if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+            etEmail.setError("Enter a valid email");
+            etEmail.requestFocus();
+            return;
+        }
+        if (password.isEmpty()) {
+            etPassword.setError("Password is required");
+            etPassword.requestFocus();
+            return;
+        }
+        if (password.length() < 6) {
+            etPassword.setError("Password must be at least 6 characters");
+            etPassword.requestFocus();
+            return;
+        }
+
+        progressBar.setVisibility(View.VISIBLE);
+        btnLogin.setEnabled(false);
+
+        mAuth.signInWithEmailAndPassword(email, password)
+                .addOnCompleteListener(this, task -> {
+                    progressBar.setVisibility(View.GONE);
+                    btnLogin.setEnabled(true);
+
+                    if (task.isSuccessful()) {
+                        FirebaseUser firebaseUser = mAuth.getCurrentUser();
+                        if (firebaseUser != null) {
+                            // Check role by UID in Firestore
+                            checkUserRole(firebaseUser.getUid());
+                        } else {
+                            Toast.makeText(LoginActivity.this, "Login succeeded but no user found.", Toast.LENGTH_SHORT).show();
+                        }
+                    } else {
+                        String errorMessage = task.getException() != null
+                                ? task.getException().getMessage()
+                                : "Authentication failed";
+                        Toast.makeText(LoginActivity.this, errorMessage, Toast.LENGTH_LONG).show();
+                    }
+                });
     }
+
+    private void checkUserRole(String uid) {
+        // Check Admin collection first
+        db.collection("Admin").document(uid).get()
+                .addOnSuccessListener(adminDoc -> {
+                    if (adminDoc.exists()) {
+                        Intent intent = new Intent(LoginActivity.this, AdminProfileActivity.class);
+                        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                        startActivity(intent);
+                        finish();
+                    } else {
+                        // Check User collection next
+                        db.collection("User").document(uid).get()
+                                .addOnSuccessListener(userDoc -> {
+                                    if (userDoc.exists()) {
+                                        Intent intent = new Intent(LoginActivity.this, AdminProfileActivity.class);  //MUST CHANGE TO USER
+                                        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+                                        startActivity(intent);
+                                        finish();
+                                    } else {
+                                        Toast.makeText(LoginActivity.this,
+                                                "Account exists but no profile found. Contact support.",
+                                                Toast.LENGTH_LONG).show();
+                                        mAuth.signOut();
+                                    }
+                                })
+                                .addOnFailureListener(e ->
+                                        Toast.makeText(LoginActivity.this, "Error checking user data.", Toast.LENGTH_SHORT).show());
+                    }
+                })
+                .addOnFailureListener(e ->
+                        Toast.makeText(LoginActivity.this, "Error checking admin data.", Toast.LENGTH_SHORT).show());
+    }
+
 }

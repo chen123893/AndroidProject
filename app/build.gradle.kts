@@ -40,17 +40,17 @@ dependencies {
     implementation(libs.activity)
     implementation(libs.constraintlayout)
 
-    // Firebase BoM (Bill of Materials) - manages all Firebase versions
+    // 🔹 Firebase BoM (manages all Firebase versions)
     implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
 
-    // Firebase Authentication
+    // 🔹 Firebase Core SDKs
     implementation("com.google.firebase:firebase-auth")
-
-    // Firebase Firestore (Database)
     implementation("com.google.firebase:firebase-firestore")
-
-    // Firebase Analytics (Optional but recommended)
+    implementation("com.google.firebase:firebase-storage") // ✅ Added
     implementation("com.google.firebase:firebase-analytics")
+
+    // 🔹 Picasso for image loading
+    implementation("com.squareup.picasso:picasso:2.8") // ✅ Added
 
     // Testing libraries
     testImplementation(libs.junit)
