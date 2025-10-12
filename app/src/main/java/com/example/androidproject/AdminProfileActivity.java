@@ -7,7 +7,6 @@ import android.app.ProgressDialog;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
-import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
@@ -21,13 +20,15 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
 import com.squareup.picasso.Picasso;
+import com.google.android.material.textfield.TextInputEditText;
 
 import java.util.HashMap;
 import java.util.Map;
 
 public class AdminProfileActivity extends AppCompatActivity {
 
-    private EditText etName, etEmail, etPhone, etPassword;
+    private TextInputEditText etPassword;
+    private EditText etName, etEmail, etPhone;
     private RadioButton radioMale, radioFemale;
     private ImageView profilePic;
     private Button btnEditPic, btnUpdate;
@@ -67,7 +68,6 @@ public class AdminProfileActivity extends AppCompatActivity {
         // Disable editing by default
         setEditingEnabled(false);
 
-        // Check user login
         FirebaseUser currentUser = auth.getCurrentUser();
         if (currentUser == null) {
             Toast.makeText(this, "No logged in user. Please login again.", Toast.LENGTH_SHORT).show();
@@ -76,13 +76,9 @@ public class AdminProfileActivity extends AppCompatActivity {
             return;
         }
 
-        // Load admin profile
         loadAdminProfile(currentUser.getUid());
 
-        // Edit button toggles edit mode
         btnEditPic.setOnClickListener(v -> toggleEditMode());
-
-        // Save changes
         btnUpdate.setOnClickListener(v -> {
             if (isEditing) updateProfile();
             else Toast.makeText(this, "Click Edit first to modify profile.", Toast.LENGTH_SHORT).show();
@@ -100,19 +96,20 @@ public class AdminProfileActivity extends AppCompatActivity {
                         etPassword.setText(documentSnapshot.getString("password"));
 
                         Long gender = documentSnapshot.getLong("gender");
-                        if (gender != null && gender == 0) radioMale.setChecked(true);
-                        else if (gender != null && gender == 1) radioFemale.setChecked(true);
+                        if (gender != null) {
+                            if (gender == 0) radioMale.setChecked(true);
+                            else if (gender == 1) radioFemale.setChecked(true);
+                        }
 
-                        // 💡 Safe image loading with fallback
                         String imageUrl = documentSnapshot.getString("profilePic");
                         if (imageUrl != null && !imageUrl.isEmpty()) {
-                            Picasso.get().load(imageUrl).into(profilePic);
+                            Picasso.get().load(imageUrl).fit().centerCrop().into(profilePic);
                         } else {
-                            profilePic.setImageResource(R.drawable.tofu); // default placeholder
+                            profilePic.setImageResource(R.drawable.tofu);
                         }
                     } else {
                         Toast.makeText(this, "Admin profile not found.", Toast.LENGTH_SHORT).show();
-                        profilePic.setImageResource(R.drawable.tofu); // 💡 fallback even if doc missing
+                        profilePic.setImageResource(R.drawable.tofu);
                     }
                 })
                 .addOnFailureListener(e ->
@@ -129,7 +126,7 @@ public class AdminProfileActivity extends AppCompatActivity {
         } else {
             btnEditPic.setText("Edit Profile");
             profilePic.setOnClickListener(null);
-            imageUri = null; // discard selected image if canceled
+            imageUri = null;
         }
     }
 
@@ -170,14 +167,12 @@ public class AdminProfileActivity extends AppCompatActivity {
         String uid = auth.getCurrentUser().getUid();
         DocumentReference docRef = db.collection("Admin").document(uid);
 
-        // 💡 Only upload image if selected
         if (imageUri != null) {
             StorageReference fileRef = storageRef.child(uid + ".jpg");
             fileRef.putFile(imageUri)
                     .addOnSuccessListener(taskSnapshot ->
                             fileRef.getDownloadUrl().addOnSuccessListener(uri ->
-                                    saveProfileToFirestore(docRef, name, email, phone, password, gender, uri.toString()))
-                    )
+                                    saveProfileToFirestore(docRef, name, email, phone, password, gender, uri.toString())))
                     .addOnFailureListener(e -> {
                         progressDialog.dismiss();
                         Toast.makeText(this, "Image upload failed.", Toast.LENGTH_SHORT).show();
@@ -187,16 +182,16 @@ public class AdminProfileActivity extends AppCompatActivity {
         }
     }
 
-    private void saveProfileToFirestore(DocumentReference docRef, String name, String email, String phone, String password, int gender, String imageUrl) {
+    private void saveProfileToFirestore(DocumentReference docRef, String name, String email, String phone,
+                                        String password, int gender, String imageUrl) {
         Map<String, Object> profileData = new HashMap<>();
         profileData.put("name", name);
         profileData.put("email", email);
         profileData.put("phoneNum", phone);
         profileData.put("password", password);
         profileData.put("gender", gender);
-        if (imageUrl != null) profileData.put("profilePic", imageUrl); // 💡 skip if null
+        if (imageUrl != null) profileData.put("profilePic", imageUrl);
 
-        // Merge fields safely
         docRef.set(profileData, com.google.firebase.firestore.SetOptions.merge())
                 .addOnSuccessListener(aVoid -> {
                     progressDialog.dismiss();
