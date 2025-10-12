@@ -13,6 +13,7 @@ import android.widget.ImageView;
 import android.widget.RadioButton;
 import android.widget.Toast;
 
+
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentReference;
@@ -21,7 +22,10 @@ import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
 import com.squareup.picasso.Picasso;
 import com.google.android.material.textfield.TextInputEditText;
+import com.google.android.material.bottomnavigation.BottomNavigationView;
 
+
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -83,6 +87,30 @@ public class AdminProfileActivity extends AppCompatActivity {
             if (isEditing) updateProfile();
             else Toast.makeText(this, "Click Edit first to modify profile.", Toast.LENGTH_SHORT).show();
         });
+
+        BottomNavigationView bottomNav = findViewById(R.id.bottom_navigation);
+        bottomNav.setSelectedItemId(R.id.nav_profile);
+        bottomNav.setOnItemSelectedListener(item -> {
+            int id = item.getItemId();
+            if (id == R.id.nav_my_events) {
+                startActivity(new Intent(AdminProfileActivity.this, CreateEventActivity.class));
+                overridePendingTransition(0, 0);
+                finish(); // optional, prevents stack duplication
+                return true;
+            } else if (id == R.id.nav_create_event) {
+                startActivity(new Intent(AdminProfileActivity.this, CreateEventActivity.class));
+                overridePendingTransition(0, 0);
+                finish(); // optional, prevents going back to same screen
+                return true;
+            } else if (id == R.id.nav_profile) {
+                return true;
+            }
+            return false;
+        });
+
+        requestStoragePermission();
+
+
     }
 
     private void loadAdminProfile(String uid) {
@@ -98,7 +126,7 @@ public class AdminProfileActivity extends AppCompatActivity {
                         Long gender = documentSnapshot.getLong("gender");
                         if (gender != null) {
                             if (gender == 0) radioMale.setChecked(true);
-                            else if (gender == 1) radioFemale.setChecked(true);
+//                            else if (gender == 1) radioFemale.setChecked(true);
                         }
 
                         String imageUrl = documentSnapshot.getString("profilePic");
@@ -155,6 +183,7 @@ public class AdminProfileActivity extends AppCompatActivity {
         }
     }
 
+
     private void updateProfile() {
         progressDialog.show();
 
@@ -164,43 +193,110 @@ public class AdminProfileActivity extends AppCompatActivity {
         String password = etPassword.getText().toString().trim();
         int gender = radioMale.isChecked() ? 0 : 1;
 
-        String uid = auth.getCurrentUser().getUid();
+        FirebaseUser user = auth.getCurrentUser();
+        if (user == null) {
+            progressDialog.dismiss();
+            Toast.makeText(this, "User not found. Please re-login.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        String uid = user.getUid();
         DocumentReference docRef = db.collection("Admin").document(uid);
 
-        if (imageUri != null) {
-            StorageReference fileRef = storageRef.child(uid + ".jpg");
-            fileRef.putFile(imageUri)
-                    .addOnSuccessListener(taskSnapshot ->
-                            fileRef.getDownloadUrl().addOnSuccessListener(uri ->
-                                    saveProfileToFirestore(docRef, name, email, phone, password, gender, uri.toString())))
+        // Step 1: get existing image URL (in case no new image is picked)
+        docRef.get().addOnSuccessListener(snapshot -> {
+            String existingImageUrl = snapshot.getString("profilePic");
+
+            // Step 2: update email & password in Firebase Authentication
+            user.updateEmail(email)
+                    .addOnSuccessListener(unused -> user.updatePassword(password)
+                            .addOnSuccessListener(unused1 -> {
+                                // Step 3: upload image safely using InputStream
+                                if (imageUri != null) {
+                                    StorageReference fileRef = storageRef.child(uid + ".jpg");
+                                    try {
+                                        InputStream inputStream = getContentResolver().openInputStream(imageUri);
+                                        if (inputStream == null) {
+                                            progressDialog.dismiss();
+                                            Toast.makeText(this, "Cannot open image file.", Toast.LENGTH_SHORT).show();
+                                            return;
+                                        }
+
+                                        fileRef.putStream(inputStream)
+                                                .addOnSuccessListener(taskSnapshot -> {
+                                                    fileRef.getDownloadUrl().addOnSuccessListener(uri -> {
+                                                        saveProfileToFirestore(docRef, name, email, phone, password, gender, uri.toString());
+                                                    });
+                                                })
+                                                .addOnFailureListener(e -> {
+                                                    progressDialog.dismiss();
+                                                    Toast.makeText(this, "Image upload failed: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                                                });
+                                    } catch (Exception e) {
+                                        progressDialog.dismiss();
+                                        Toast.makeText(this, "Failed to open image: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                                    }
+                                } else {
+                                    saveProfileToFirestore(docRef, name, email, phone, password, gender, existingImageUrl);
+                                }
+
+                            })
+                            .addOnFailureListener(e -> {
+                                progressDialog.dismiss();
+                                Toast.makeText(this, "Password update failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                            }))
                     .addOnFailureListener(e -> {
                         progressDialog.dismiss();
-                        Toast.makeText(this, "Image upload failed.", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, "Email update failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                     });
-        } else {
-            saveProfileToFirestore(docRef, name, email, phone, password, gender, null);
-        }
+        }).addOnFailureListener(e -> {
+            progressDialog.dismiss();
+            Toast.makeText(this, "Failed to retrieve profile: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        });
     }
+
 
     private void saveProfileToFirestore(DocumentReference docRef, String name, String email, String phone,
                                         String password, int gender, String imageUrl) {
+
         Map<String, Object> profileData = new HashMap<>();
         profileData.put("name", name);
         profileData.put("email", email);
         profileData.put("phoneNum", phone);
         profileData.put("password", password);
         profileData.put("gender", gender);
-        if (imageUrl != null) profileData.put("profilePic", imageUrl);
+        if (imageUrl != null && !imageUrl.isEmpty()) profileData.put("profilePic", imageUrl);
 
         docRef.set(profileData, com.google.firebase.firestore.SetOptions.merge())
                 .addOnSuccessListener(aVoid -> {
                     progressDialog.dismiss();
                     Toast.makeText(this, "Profile updated successfully!", Toast.LENGTH_SHORT).show();
+
+                    // Refresh latest data
+                    loadAdminProfile(docRef.getId());
                     toggleEditMode();
                 })
                 .addOnFailureListener(e -> {
                     progressDialog.dismiss();
-                    Toast.makeText(this, "Failed to update profile: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "Failed to update Firestore: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                 });
     }
+
+    private void requestStoragePermission() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            // Android 13+ uses READ_MEDIA_IMAGES instead of READ_EXTERNAL_STORAGE
+            if (checkSelfPermission(android.Manifest.permission.READ_MEDIA_IMAGES) !=
+                    android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{android.Manifest.permission.READ_MEDIA_IMAGES}, 101);
+            }
+        } else {
+            if (checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) !=
+                    android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{android.Manifest.permission.READ_EXTERNAL_STORAGE}, 101);
+            }
+        }
+    }
+
+
+
 }
