@@ -2,6 +2,7 @@ package com.example.androidproject;
 
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -12,11 +13,13 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 
@@ -33,11 +36,14 @@ public class UserExploreActivity extends AppCompatActivity {
     private FirebaseAuth mAuth;
     private ArrayList<Event> eventList;
     private EventAdapter adapter;
+    private int currentUserGender = -1; // -1 = not loaded, 0 = female, 1 = male
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_user_explore);
+
+        Log.d("UserExplore", "Activity created");
 
         // Initialize Firebase
         db = FirebaseFirestore.getInstance();
@@ -54,25 +60,115 @@ public class UserExploreActivity extends AppCompatActivity {
         adapter = new EventAdapter(eventList);
         recyclerView.setAdapter(adapter);
 
-        // Load all events initially
-        loadAllEvents();
+        // Load current user's gender first, then load events
+        loadCurrentUserGender();
 
         // Search button listener
         btnSearch.setOnClickListener(v -> searchEvents());
     }
 
+    private void loadCurrentUserGender() {
+        String userId = mAuth.getCurrentUser().getUid();
+        Log.d("UserExplore", "Loading gender for user: " + userId);
+
+        db.collection("user").document(userId).get()
+                .addOnSuccessListener(doc -> {
+                    if (doc.exists()) {
+                        Long gender = doc.getLong("gender");
+                        currentUserGender = (gender != null) ? gender.intValue() : -1;
+                        Log.d("UserExplore", "User gender loaded: " + currentUserGender);
+                        // Now load events after gender is retrieved
+                        loadAllEvents();
+                    } else {
+                        Log.e("UserExplore", "User profile not found in Firestore");
+                        Toast.makeText(this, "User profile not found", Toast.LENGTH_SHORT).show();
+                        loadAllEvents(); // Load anyway
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Log.e("UserExplore", "Failed to load user profile: " + e.getMessage());
+                    Toast.makeText(this, "Failed to load user profile", Toast.LENGTH_SHORT).show();
+                    loadAllEvents(); // Load anyway
+                });
+    }
+
     private void loadAllEvents() {
+        Log.d("UserExplore", "Loading all events");
+
         db.collection("event").get()
                 .addOnSuccessListener(querySnapshot -> {
+                    Log.d("UserExplore", "Events loaded: " + querySnapshot.size());
                     eventList.clear();
                     for (QueryDocumentSnapshot doc : querySnapshot) {
-                        Event e = doc.toObject(Event.class);
-                        e.setId(doc.getId());
-                        eventList.add(e);
+                        try {
+                            // Manually map fields to avoid case sensitivity issues
+                            Event e = new Event();
+                            e.setId(doc.getId());
+                            e.setAdminID(doc.getString("adminID"));
+                            e.setDescription(doc.getString("description"));
+                            e.setEndDateTime(doc.getString("endDateTime"));
+                            e.setEventName(doc.getString("eventName"));
+                            e.setGenderSpec(doc.getString("genderSpec"));
+                            e.setStartDateTime(doc.getString("startDateTime"));
+                            e.setVenue(doc.getString("venue"));
+
+                            // Handle numeric fields
+                            Long currentAttendees = doc.getLong("currentAttendees");
+                            e.setCurrentAttendees(currentAttendees != null ? currentAttendees.intValue() : 0);
+
+                            Long pax = doc.getLong("pax");
+                            e.setPax(pax != null ? pax.intValue() : 0);
+
+                            Log.d("UserExplore", "Event: " + e.getEventName() + ", GenderSpec: " + e.getGenderSpec());
+
+                            // Filter by gender specification
+                            if (shouldShowEvent(e)) {
+                                eventList.add(e);
+                            }
+                        } catch (Exception e) {
+                            Log.e("UserExplore", "Error parsing event: " + e.getMessage());
+                        }
                     }
                     adapter.notifyDataSetChanged();
+                    Log.d("UserExplore", "Events displayed: " + eventList.size());
+
+                    // If no events loaded, show message
+                    if (eventList.isEmpty()) {
+                        Toast.makeText(UserExploreActivity.this, "No events found", Toast.LENGTH_SHORT).show();
+                    }
                 })
-                .addOnFailureListener(e -> Toast.makeText(this, "Failed to load events", Toast.LENGTH_SHORT).show());
+                .addOnFailureListener(e -> {
+                    Log.e("UserExplore", "Failed to load events: " + e.getMessage());
+                    Toast.makeText(this, "Failed to load events: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                });
+    }
+
+    private boolean shouldShowEvent(Event event) {
+        // If genderSpec is null or empty, show to everyone
+        if (event.getGenderSpec() == null || event.getGenderSpec().isEmpty()) {
+            return true;
+        }
+
+        // If genderSpec is "All" or "Both", show to everyone
+        String spec = event.getGenderSpec().toLowerCase();
+        if (spec.equals("all") || spec.equals("both")) {
+            return true;
+        }
+
+        // If user gender not loaded, show all events
+        if (currentUserGender == -1) {
+            return true;
+        }
+
+        // Check if event matches user's gender
+        // Assuming genderSpec can be "Male", "Female", "male", "female", "1", "0"
+        if (currentUserGender == 1) { // Male
+            return spec.equals("male") || spec.equals("1");
+        } else if (currentUserGender == 0) { // Female
+            return spec.equals("female") || spec.equals("0");
+        }
+
+        return true; // Default to showing if gender is unknown
     }
 
     private void searchEvents() {
@@ -82,38 +178,97 @@ public class UserExploreActivity extends AppCompatActivity {
             return;
         }
 
+        Log.d("UserExplore", "Searching events with keyword: " + keyword);
+
         db.collection("event")
                 .whereGreaterThanOrEqualTo("eventName", keyword)
                 .whereLessThanOrEqualTo("eventName", keyword + '\uf8ff')
                 .get()
                 .addOnSuccessListener(querySnapshot -> {
+                    Log.d("UserExplore", "Search results: " + querySnapshot.size());
                     eventList.clear();
                     for (QueryDocumentSnapshot doc : querySnapshot) {
-                        Event e = doc.toObject(Event.class);
-                        e.setId(doc.getId());
-                        eventList.add(e);
+                        try {
+                            // Manually map fields for search results too
+                            Event e = new Event();
+                            e.setId(doc.getId());
+                            e.setAdminID(doc.getString("adminID"));
+                            e.setDescription(doc.getString("description"));
+                            e.setEndDateTime(doc.getString("endDateTime"));
+                            e.setEventName(doc.getString("eventName"));
+                            e.setGenderSpec(doc.getString("genderSpec"));
+                            e.setStartDateTime(doc.getString("startDateTime"));
+                            e.setVenue(doc.getString("venue"));
+
+                            // Handle numeric fields
+                            Long currentAttendees = doc.getLong("currentAttendees");
+                            e.setCurrentAttendees(currentAttendees != null ? currentAttendees.intValue() : 0);
+
+                            Long pax = doc.getLong("pax");
+                            e.setPax(pax != null ? pax.intValue() : 0);
+
+                            // Apply gender filter to search results too
+                            if (shouldShowEvent(e)) {
+                                eventList.add(e);
+                            }
+                        } catch (Exception e) {
+                            Log.e("UserExplore", "Error parsing event in search: " + e.getMessage());
+                        }
                     }
                     adapter.notifyDataSetChanged();
+                    Log.d("UserExplore", "Search events displayed: " + eventList.size());
                 })
-                .addOnFailureListener(e ->
-                        Toast.makeText(this, "Search failed", Toast.LENGTH_SHORT).show());
+                .addOnFailureListener(e -> {
+                    Log.e("UserExplore", "Search failed: " + e.getMessage());
+                    Toast.makeText(this, "Search failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                });
     }
 
     // ---------------------- EVENT MODEL -----------------------
     public static class Event {
-        private String id, adminID, description, endDateTime, eventName, genderSpec, startDateTime, venue;
-        private int currentAttendees, pax;
+        private String id;
+        private String adminID;
+        private String description;
+        private String endDateTime;
+        private String eventName;
+        private String genderSpec;
+        private String startDateTime;
+        private String venue;
+        private int currentAttendees;
+        private int pax;
 
         public Event() {} // Needed for Firestore
 
+        // Getters and Setters
         public String getId() { return id; }
         public void setId(String id) { this.id = id; }
-        public String getEventName() { return eventName; }
-        public String getVenue() { return venue; }
-        public String getStartDateTime() { return startDateTime; }
+
+        public String getAdminID() { return adminID; }
+        public void setAdminID(String adminID) { this.adminID = adminID; }
+
+        public String getDescription() { return description; }
+        public void setDescription(String description) { this.description = description; }
+
         public String getEndDateTime() { return endDateTime; }
+        public void setEndDateTime(String endDateTime) { this.endDateTime = endDateTime; }
+
+        public String getEventName() { return eventName; }
+        public void setEventName(String eventName) { this.eventName = eventName; }
+
+        public String getGenderSpec() { return genderSpec; }
+        public void setGenderSpec(String genderSpec) { this.genderSpec = genderSpec; }
+
+        public String getStartDateTime() { return startDateTime; }
+        public void setStartDateTime(String startDateTime) { this.startDateTime = startDateTime; }
+
+        public String getVenue() { return venue; }
+        public void setVenue(String venue) { this.venue = venue; }
+
         public int getCurrentAttendees() { return currentAttendees; }
+        public void setCurrentAttendees(int currentAttendees) { this.currentAttendees = currentAttendees; }
+
         public int getPax() { return pax; }
+        public void setPax(int pax) { this.pax = pax; }
     }
 
     // ---------------------- ADAPTER ---------------------------
@@ -134,15 +289,34 @@ public class UserExploreActivity extends AppCompatActivity {
 
         @Override
         public void onBindViewHolder(@NonNull EventViewHolder holder, int position) {
-            Event event = events.get(position);
-            holder.tvEventName.setText(event.getEventName());
-            holder.tvVenue.setText("Venue: " + event.getVenue());
-            holder.tvDatetime.setText("Start: " + event.getStartDateTime() + "\nEnd: " + event.getEndDateTime());
-            holder.tvCapacity.setText(event.getCurrentAttendees() + " / " + event.getPax());
+            try {
+                Event event = events.get(position);
 
-            checkIfJoined(event, holder.btnJoin);
+                // Set event data to views
+                holder.tvEventName.setText(event.getEventName() != null ? event.getEventName() : "Unnamed Event");
+                holder.tvVenue.setText("Venue: " + (event.getVenue() != null ? event.getVenue() : "Not specified"));
 
-            holder.btnJoin.setOnClickListener(v -> joinEvent(event, holder.btnJoin));
+                String startTime = event.getStartDateTime() != null ? event.getStartDateTime() : "Not set";
+                String endTime = event.getEndDateTime() != null ? event.getEndDateTime() : "Not set";
+                holder.tvDatetime.setText("Start: " + startTime + "\nEnd: " + endTime);
+
+                holder.tvCapacity.setText(event.getCurrentAttendees() + " / " + event.getPax());
+
+                // Check if event is full
+                if (event.getCurrentAttendees() >= event.getPax()) {
+                    holder.btnJoin.setText("Full");
+                    holder.btnJoin.setEnabled(false);
+                    holder.btnJoin.setBackgroundTintList(ContextCompat.getColorStateList(UserExploreActivity.this, android.R.color.darker_gray));
+                } else {
+                    checkIfJoined(event, holder.btnJoin);
+                }
+
+                holder.btnJoin.setOnClickListener(v -> joinEvent(event, holder.btnJoin));
+
+            } catch (Exception e) {
+                Log.e("EventAdapter", "Error binding view holder: " + e.getMessage());
+                e.printStackTrace();
+            }
         }
 
         @Override
@@ -156,11 +330,17 @@ public class UserExploreActivity extends AppCompatActivity {
 
             EventViewHolder(@NonNull View itemView) {
                 super(itemView);
-                tvEventName = itemView.findViewById(R.id.tv_event_name);
-                tvVenue = itemView.findViewById(R.id.tv_event_venue);
-                tvDatetime = itemView.findViewById(R.id.tv_event_datetime);
-                tvCapacity = itemView.findViewById(R.id.tv_event_capacity);
-                btnJoin = itemView.findViewById(R.id.btn_join);
+                try {
+                    tvEventName = itemView.findViewById(R.id.tv_event_name);
+                    tvVenue = itemView.findViewById(R.id.tv_event_venue);
+                    tvDatetime = itemView.findViewById(R.id.tv_event_datetime);
+                    tvCapacity = itemView.findViewById(R.id.tv_event_capacity);
+                    btnJoin = itemView.findViewById(R.id.btn_join);
+
+                } catch (Exception e) {
+                    Log.e("EventViewHolder", "Error initializing views: " + e.getMessage());
+                    e.printStackTrace();
+                }
             }
         }
 
@@ -175,18 +355,28 @@ public class UserExploreActivity extends AppCompatActivity {
                         if (!querySnapshot.isEmpty()) {
                             joinButton.setText("Joined");
                             joinButton.setEnabled(false);
-                            joinButton.setBackgroundTintList(getColorStateList(android.R.color.darker_gray));
+                            joinButton.setBackgroundTintList(ContextCompat.getColorStateList(UserExploreActivity.this, android.R.color.darker_gray));
                         } else {
                             joinButton.setText("Join");
                             joinButton.setEnabled(true);
-                            joinButton.setBackgroundTintList(getColorStateList(android.R.color.holo_blue_light));
+                            joinButton.setBackgroundTintList(ContextCompat.getColorStateList(UserExploreActivity.this, android.R.color.holo_blue_light));
                         }
+                    })
+                    .addOnFailureListener(e -> {
+                        Log.e("EventAdapter", "Error checking attendance: " + e.getMessage());
                     });
         }
 
         // ------------------ JOIN EVENT ------------------
         private void joinEvent(Event event, Button joinButton) {
             String userId = mAuth.getCurrentUser().getUid();
+            Log.d("EventAdapter", "Attempting to join event: " + event.getId() + " by user: " + userId);
+
+            // Check if event is full before joining
+            if (event.getCurrentAttendees() >= event.getPax()) {
+                Toast.makeText(UserExploreActivity.this, "Event is full!", Toast.LENGTH_SHORT).show();
+                return;
+            }
 
             Map<String, Object> attendance = new HashMap<>();
             attendance.put("eventID", event.getId());
@@ -195,20 +385,27 @@ public class UserExploreActivity extends AppCompatActivity {
             db.collection("attendance")
                     .add(attendance)
                     .addOnSuccessListener(docRef -> {
+                        Log.d("EventAdapter", "Successfully joined event");
                         Toast.makeText(UserExploreActivity.this, "Joined successfully!", Toast.LENGTH_SHORT).show();
 
                         // Update attendee count
                         DocumentReference eventRef = db.collection("event").document(event.getId());
-                        eventRef.get().addOnSuccessListener(snapshot -> {
-                            int current = snapshot.getLong("currentAttendees").intValue();
-                            eventRef.update("currentAttendees", current + 1);
-                            joinButton.setText("Joined");
-                            joinButton.setEnabled(false);
-                            joinButton.setBackgroundTintList(getColorStateList(android.R.color.darker_gray));
-                        });
+                        eventRef.update("currentAttendees", event.getCurrentAttendees() + 1)
+                                .addOnSuccessListener(aVoid -> {
+                                    event.setCurrentAttendees(event.getCurrentAttendees() + 1);
+                                    joinButton.setText("Joined");
+                                    joinButton.setEnabled(false);
+                                    joinButton.setBackgroundTintList(ContextCompat.getColorStateList(UserExploreActivity.this, android.R.color.darker_gray));
+                                    notifyDataSetChanged();
+                                })
+                                .addOnFailureListener(e -> {
+                                    Log.e("EventAdapter", "Error updating attendee count: " + e.getMessage());
+                                });
                     })
-                    .addOnFailureListener(e ->
-                            Toast.makeText(UserExploreActivity.this, "Failed to join", Toast.LENGTH_SHORT).show());
+                    .addOnFailureListener(e -> {
+                        Log.e("EventAdapter", "Failed to join event: " + e.getMessage());
+                        Toast.makeText(UserExploreActivity.this, "Failed to join: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    });
         }
     }
 }

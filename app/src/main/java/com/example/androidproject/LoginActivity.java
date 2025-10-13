@@ -2,6 +2,7 @@ package com.example.androidproject;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.util.Patterns;
 import android.view.View;
 import android.widget.Button;
@@ -62,7 +63,6 @@ public class LoginActivity extends AppCompatActivity {
         super.onStart();
         mAuth.signOut(); // force logout
     }
-
 
     private void handleForgotPassword() {
         String email = etEmail.getText() != null ? etEmail.getText().toString().trim() : "";
@@ -129,6 +129,8 @@ public class LoginActivity extends AppCompatActivity {
         progressBar.setVisibility(View.VISIBLE);
         btnLogin.setEnabled(false);
 
+        Log.d("LoginDebug", "Attempting login for: " + email);
+
         mAuth.signInWithEmailAndPassword(email, password)
                 .addOnCompleteListener(this, task -> {
                     progressBar.setVisibility(View.GONE);
@@ -137,54 +139,64 @@ public class LoginActivity extends AppCompatActivity {
                     if (task.isSuccessful()) {
                         FirebaseUser firebaseUser = mAuth.getCurrentUser();
                         if (firebaseUser != null) {
+                            Log.d("LoginDebug", "Login successful, UID: " + firebaseUser.getUid());
                             // Check role by UID in Firestore
                             checkUserRole(firebaseUser.getUid());
                         } else {
+                            Log.e("LoginDebug", "Login succeeded but no user found");
                             Toast.makeText(LoginActivity.this, "Login succeeded but no user found.", Toast.LENGTH_SHORT).show();
                         }
                     } else {
                         String errorMessage = task.getException() != null
                                 ? task.getException().getMessage()
                                 : "Authentication failed";
+                        Log.e("LoginDebug", "Login failed: " + errorMessage);
                         Toast.makeText(LoginActivity.this, errorMessage, Toast.LENGTH_LONG).show();
                     }
                 });
     }
 
     private void checkUserRole(String uid) {
+        Log.d("LoginDebug", "Checking role for UID: " + uid);
+
         // Check Admin collection first
         db.collection("admin").document(uid).get()
                 .addOnSuccessListener(adminDoc -> {
                     if (adminDoc.exists()) {
-                        // Admin detected -> Go to AdminProfileActivity
+                        Log.d("LoginDebug", "Admin document found, redirecting to AdminProfileActivity");
                         Intent intent = new Intent(LoginActivity.this, AdminProfileActivity.class);
                         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
                         startActivity(intent);
                         finish();
                     } else {
+                        Log.d("LoginDebug", "Admin document not found, checking user collection");
                         // Check User collection next
                         db.collection("user").document(uid).get()
                                 .addOnSuccessListener(userDoc -> {
                                     if (userDoc.exists()) {
-                                        // ✅ User detected -> Go to ExploreActivity
+                                        Log.d("LoginDebug", "User document found, redirecting to UserExploreActivity");
+                                        // ✅ User detected -> Go to UserExploreActivity
                                         Intent intent = new Intent(LoginActivity.this, UserExploreActivity.class);
                                         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
                                         startActivity(intent);
                                         finish();
                                     } else {
+                                        Log.d("LoginDebug", "User document also not found, user has no profile");
                                         Toast.makeText(LoginActivity.this,
-                                                "Account exists but no profile found. Contact support.",
+                                                "Account exists but no profile found. Please contact support.",
                                                 Toast.LENGTH_LONG).show();
                                         mAuth.signOut();
                                     }
                                 })
-                                .addOnFailureListener(e ->
-                                        Toast.makeText(LoginActivity.this, "Error checking user data.", Toast.LENGTH_SHORT).show());
+                                .addOnFailureListener(e -> {
+                                    Log.e("LoginDebug", "Error checking user data: " + e.getMessage());
+                                    Toast.makeText(LoginActivity.this, "Error checking user data: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                                });
                     }
                 })
-                .addOnFailureListener(e ->
-                        Toast.makeText(LoginActivity.this, "Error checking admin data.", Toast.LENGTH_SHORT).show());
-
+                .addOnFailureListener(e -> {
+                    Log.e("LoginDebug", "Error checking admin data: " + e.getMessage());
+                    Toast.makeText(LoginActivity.this, "Error checking admin data: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                });
     }
-
 }

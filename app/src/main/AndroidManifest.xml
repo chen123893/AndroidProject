@@ -28,9 +28,12 @@
             </intent-filter>
         </activity>
 
-        <!-- Signup Activity -->
         <activity
             android:name=".SignupActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".UserExploreActivity"
             android:exported="false" />
 
         <activity android:name=".AdminProfileActivity" />
