@@ -40,6 +40,9 @@ dependencies {
     implementation(libs.activity)
     implementation(libs.constraintlayout)
 
+    implementation ("com.github.bumptech.glide:glide:4.16.0")
+    annotationProcessor ("com.github.bumptech.glide:compiler:4.16.0")
+
     // 🔹 Firebase BoM (manages all Firebase versions)
     implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
 
@@ -48,6 +51,7 @@ dependencies {
     implementation("com.google.firebase:firebase-firestore")
     implementation("com.google.firebase:firebase-storage") // ✅ Added
     implementation("com.google.firebase:firebase-analytics")
+
 
     // 🔹 Picasso for image loading
     implementation("com.squareup.picasso:picasso:2.8") // ✅ Added

@@ -36,7 +36,8 @@
         <activity android:name=".AdminProfileActivity" />
         <activity android:name=".CreateEventActivity" />
         <activity android:name=".MyEventsActivity" />
-
+        <activity android:name=".EditEventActivity" />
+        <activity android:name=".ViewListActivity" />
 
 
     </application>
