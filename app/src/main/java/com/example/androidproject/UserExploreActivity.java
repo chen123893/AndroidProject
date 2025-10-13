@@ -95,38 +95,48 @@ public class UserExploreActivity extends AppCompatActivity {
     private void loadAllEvents() {
         Log.d("UserExplore", "Loading all events");
 
-        db.collection("event").get()
+        db.collection("events").get()
                 .addOnSuccessListener(querySnapshot -> {
                     Log.d("UserExplore", "Events loaded: " + querySnapshot.size());
                     eventList.clear();
                     for (QueryDocumentSnapshot doc : querySnapshot) {
                         try {
-                            // Manually map fields to avoid case sensitivity issues
-                            Event e = new Event();
-                            e.setId(doc.getId());
-                            e.setAdminID(doc.getString("adminID"));
-                            e.setDescription(doc.getString("description"));
-                            e.setEndDateTime(doc.getString("endDateTime"));
-                            e.setEventName(doc.getString("eventName"));
-                            e.setGenderSpec(doc.getString("genderSpec"));
-                            e.setStartDateTime(doc.getString("startDateTime"));
-                            e.setVenue(doc.getString("venue"));
+                            Event event = doc.toObject(Event.class);
+                            event.setId(doc.getId());
 
-                            // Handle numeric fields
-                            Long currentAttendees = doc.getLong("currentAttendees");
-                            e.setCurrentAttendees(currentAttendees != null ? currentAttendees.intValue() : 0);
-
-                            Long pax = doc.getLong("pax");
-                            e.setPax(pax != null ? pax.intValue() : 0);
-
-                            Log.d("UserExplore", "Event: " + e.getEventName() + ", GenderSpec: " + e.getGenderSpec());
+                            Log.d("UserExplore", "Event: " + event.getEventName() + ", GenderSpec: " + event.getGenderSpec());
 
                             // Filter by gender specification
-                            if (shouldShowEvent(e)) {
-                                eventList.add(e);
+                            if (shouldShowEvent(event)) {
+                                eventList.add(event);
                             }
                         } catch (Exception e) {
                             Log.e("UserExplore", "Error parsing event: " + e.getMessage());
+                            // Fallback to manual mapping if toObject fails
+                            try {
+                                Event fallbackEvent = new Event();
+                                fallbackEvent.setId(doc.getId());
+                                fallbackEvent.setAdminID(doc.getString("adminID"));
+                                fallbackEvent.setDescription(doc.getString("description"));
+                                fallbackEvent.setEndDateTime(doc.getString("endDateTime"));
+                                fallbackEvent.setEventName(doc.getString("eventName"));
+                                fallbackEvent.setGenderSpec(doc.getString("genderSpec"));
+                                fallbackEvent.setStartDateTime(doc.getString("startDateTime"));
+                                fallbackEvent.setVenue(doc.getString("venue"));
+
+                                // Handle numeric fields
+                                Long currentAttendees = doc.getLong("currentAttendees");
+                                fallbackEvent.setCurrentAttendees(currentAttendees != null ? currentAttendees.intValue() : 0);
+
+                                Long pax = doc.getLong("pax");
+                                fallbackEvent.setPax(pax != null ? pax.intValue() : 0);
+
+                                if (shouldShowEvent(fallbackEvent)) {
+                                    eventList.add(fallbackEvent);
+                                }
+                            } catch (Exception ex) {
+                                Log.e("UserExplore", "Error in fallback parsing: " + ex.getMessage());
+                            }
                         }
                     }
                     adapter.notifyDataSetChanged();
@@ -151,7 +161,7 @@ public class UserExploreActivity extends AppCompatActivity {
 
         // If genderSpec is "All" or "Both", show to everyone
         String spec = event.getGenderSpec().toLowerCase();
-        if (spec.equals("all") || spec.equals("both")) {
+        if (spec.equals("all") || spec.equals("both") || spec.equals("any")) {
             return true;
         }
 
@@ -161,18 +171,17 @@ public class UserExploreActivity extends AppCompatActivity {
         }
 
         // Check if event matches user's gender
-        // Assuming genderSpec can be "Male", "Female", "male", "female", "1", "0"
         if (currentUserGender == 1) { // Male
-            return spec.equals("male") || spec.equals("1");
+            return spec.equals("male") || spec.equals("1") || spec.equals("m");
         } else if (currentUserGender == 0) { // Female
-            return spec.equals("female") || spec.equals("0");
+            return spec.equals("female") || spec.equals("0") || spec.equals("f");
         }
 
         return true; // Default to showing if gender is unknown
     }
 
     private void searchEvents() {
-        String keyword = searchInput.getText().toString().trim();
+        String keyword = searchInput.getText().toString().trim().toLowerCase();
         if (TextUtils.isEmpty(keyword)) {
             loadAllEvents();
             return;
@@ -180,43 +189,64 @@ public class UserExploreActivity extends AppCompatActivity {
 
         Log.d("UserExplore", "Searching events with keyword: " + keyword);
 
-        db.collection("event")
-                .whereGreaterThanOrEqualTo("eventName", keyword)
-                .whereLessThanOrEqualTo("eventName", keyword + '\uf8ff')
-                .get()
+        db.collection("events").get()
                 .addOnSuccessListener(querySnapshot -> {
                     Log.d("UserExplore", "Search results: " + querySnapshot.size());
                     eventList.clear();
                     for (QueryDocumentSnapshot doc : querySnapshot) {
                         try {
-                            // Manually map fields for search results too
-                            Event e = new Event();
-                            e.setId(doc.getId());
-                            e.setAdminID(doc.getString("adminID"));
-                            e.setDescription(doc.getString("description"));
-                            e.setEndDateTime(doc.getString("endDateTime"));
-                            e.setEventName(doc.getString("eventName"));
-                            e.setGenderSpec(doc.getString("genderSpec"));
-                            e.setStartDateTime(doc.getString("startDateTime"));
-                            e.setVenue(doc.getString("venue"));
+                            Event event = doc.toObject(Event.class);
+                            event.setId(doc.getId());
 
-                            // Handle numeric fields
-                            Long currentAttendees = doc.getLong("currentAttendees");
-                            e.setCurrentAttendees(currentAttendees != null ? currentAttendees.intValue() : 0);
+                            // Check if event matches search keyword and gender filter
+                            if ((event.getEventName() != null && event.getEventName().toLowerCase().contains(keyword)) ||
+                                    (event.getVenue() != null && event.getVenue().toLowerCase().contains(keyword)) ||
+                                    (event.getDescription() != null && event.getDescription().toLowerCase().contains(keyword))) {
 
-                            Long pax = doc.getLong("pax");
-                            e.setPax(pax != null ? pax.intValue() : 0);
-
-                            // Apply gender filter to search results too
-                            if (shouldShowEvent(e)) {
-                                eventList.add(e);
+                                if (shouldShowEvent(event)) {
+                                    eventList.add(event);
+                                }
                             }
                         } catch (Exception e) {
                             Log.e("UserExplore", "Error parsing event in search: " + e.getMessage());
+                            // Fallback to manual mapping
+                            try {
+                                Event fallbackEvent = new Event();
+                                fallbackEvent.setId(doc.getId());
+                                fallbackEvent.setAdminID(doc.getString("adminID"));
+                                fallbackEvent.setDescription(doc.getString("description"));
+                                fallbackEvent.setEndDateTime(doc.getString("endDateTime"));
+                                fallbackEvent.setEventName(doc.getString("eventName"));
+                                fallbackEvent.setGenderSpec(doc.getString("genderSpec"));
+                                fallbackEvent.setStartDateTime(doc.getString("startDateTime"));
+                                fallbackEvent.setVenue(doc.getString("venue"));
+
+                                Long currentAttendees = doc.getLong("currentAttendees");
+                                fallbackEvent.setCurrentAttendees(currentAttendees != null ? currentAttendees.intValue() : 0);
+
+                                Long pax = doc.getLong("pax");
+                                fallbackEvent.setPax(pax != null ? pax.intValue() : 0);
+
+                                // Check search criteria
+                                if ((fallbackEvent.getEventName() != null && fallbackEvent.getEventName().toLowerCase().contains(keyword)) ||
+                                        (fallbackEvent.getVenue() != null && fallbackEvent.getVenue().toLowerCase().contains(keyword)) ||
+                                        (fallbackEvent.getDescription() != null && fallbackEvent.getDescription().toLowerCase().contains(keyword))) {
+
+                                    if (shouldShowEvent(fallbackEvent)) {
+                                        eventList.add(fallbackEvent);
+                                    }
+                                }
+                            } catch (Exception ex) {
+                                Log.e("UserExplore", "Error in fallback search parsing: " + ex.getMessage());
+                            }
                         }
                     }
                     adapter.notifyDataSetChanged();
                     Log.d("UserExplore", "Search events displayed: " + eventList.size());
+
+                    if (eventList.isEmpty()) {
+                        Toast.makeText(UserExploreActivity.this, "No events found for: " + keyword, Toast.LENGTH_SHORT).show();
+                    }
                 })
                 .addOnFailureListener(e -> {
                     Log.e("UserExplore", "Search failed: " + e.getMessage());
@@ -388,10 +418,11 @@ public class UserExploreActivity extends AppCompatActivity {
                         Log.d("EventAdapter", "Successfully joined event");
                         Toast.makeText(UserExploreActivity.this, "Joined successfully!", Toast.LENGTH_SHORT).show();
 
-                        // Update attendee count
-                        DocumentReference eventRef = db.collection("event").document(event.getId());
+                        // Update attendee count - FIXED: collection name should be "events" not "event"
+                        DocumentReference eventRef = db.collection("events").document(event.getId());
                         eventRef.update("currentAttendees", event.getCurrentAttendees() + 1)
                                 .addOnSuccessListener(aVoid -> {
+                                    Log.d("EventAdapter", "Successfully updated attendee count");
                                     event.setCurrentAttendees(event.getCurrentAttendees() + 1);
                                     joinButton.setText("Joined");
                                     joinButton.setEnabled(false);
@@ -400,6 +431,7 @@ public class UserExploreActivity extends AppCompatActivity {
                                 })
                                 .addOnFailureListener(e -> {
                                     Log.e("EventAdapter", "Error updating attendee count: " + e.getMessage());
+                                    Toast.makeText(UserExploreActivity.this, "Joined but failed to update count", Toast.LENGTH_SHORT).show();
                                 });
                     })
                     .addOnFailureListener(e -> {
