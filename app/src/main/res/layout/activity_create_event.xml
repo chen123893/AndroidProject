@@ -23,7 +23,6 @@
             android:textStyle="bold" />
     </LinearLayout>
 
-
     <!-- Form -->
     <ScrollView
         android:layout_width="match_parent"
@@ -55,39 +54,31 @@
                 android:padding="12dp"
                 android:textSize="16sp" />
 
-            <LinearLayout
+            <!-- Start Date-Time -->
+            <EditText
+                android:id="@+id/startDateTime"
+                android:hint="Start Date and Time"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
                 android:layout_marginTop="12dp"
-                android:weightSum="2">
+                android:background="@drawable/input_bg"
+                android:padding="12dp"
+                android:textSize="16sp"
+                android:focusable="false"
+                android:clickable="true" />
 
-                <EditText
-                    android:id="@+id/startTime"
-                    android:hint="10:00am"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:background="@drawable/input_bg"
-                    android:padding="12dp" />
-
-                <TextView
-                    android:text=" - "
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:gravity="center"
-                    android:textSize="16sp"
-                    android:layout_marginHorizontal="6dp" />
-
-                <EditText
-                    android:id="@+id/endTime"
-                    android:hint="12:00pm"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:background="@drawable/input_bg"
-                    android:padding="12dp" />
-            </LinearLayout>
+            <!-- End Date-Time -->
+            <EditText
+                android:id="@+id/endDateTime"
+                android:hint="End Date and Time"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/input_bg"
+                android:padding="12dp"
+                android:textSize="16sp"
+                android:focusable="false"
+                android:clickable="true" />
 
             <EditText
                 android:id="@+id/pax"
