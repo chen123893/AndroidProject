@@ -3,6 +3,7 @@ package com.example.androidproject;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
+import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -14,7 +15,6 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.CollectionReference;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
-import com.google.firebase.firestore.QuerySnapshot;
 
 import java.util.Map;
 
@@ -41,7 +41,7 @@ public class MyEventsActivity extends AppCompatActivity {
 
         // Bottom navigation setup
         BottomNavigationView bottomNav = findViewById(R.id.bottom_navigation);
-        bottomNav.setSelectedItemId(R.id.nav_create_event);
+        bottomNav.setSelectedItemId(R.id.nav_my_events);
 
         bottomNav.setOnItemSelectedListener(item -> {
             int id = item.getItemId();
@@ -87,7 +87,6 @@ public class MyEventsActivity extends AppCompatActivity {
                         String startDateTime = (String) doc.get("startDateTime");
                         if (startDateTime == null) startDateTime = "Unknown Date";
 
-                        // Extract just the date part (up to the first comma or space)
                         String dateKey = startDateTime.split(",")[0];
                         groupedEvents.computeIfAbsent(dateKey, k -> new java.util.ArrayList<>()).add(doc);
                     }
@@ -123,11 +122,25 @@ public class MyEventsActivity extends AppCompatActivity {
 
                             nameView.setText(eventName);
                             venueView.setText("Venue: " + venue);
-
-                            // make time look nice
                             timeView.setText("From: " + startDate + "\nTo:   " + endDate);
 
                             countAttendees(eventID, paxView, pax);
+
+                            // Edit button
+                            Button editBtn = eventCard.findViewById(R.id.btnEditEvent);
+                            editBtn.setOnClickListener(v -> {
+                                Intent intent = new Intent(MyEventsActivity.this, EditEventActivity.class);
+                                intent.putExtra("eventId", eventID);
+                                startActivity(intent);
+                            });
+
+                            // ✅ View Attendees button (fixed)
+                            Button viewBtn = eventCard.findViewById(R.id.btnViewList);
+                            viewBtn.setOnClickListener(v -> {
+                                Intent intent = new Intent(MyEventsActivity.this, ViewListActivity.class);
+                                intent.putExtra("eventID", eventID); // fixed line
+                                startActivity(intent);
+                            });
 
                             eventsContainer.addView(eventCard);
                         }
@@ -136,7 +149,6 @@ public class MyEventsActivity extends AppCompatActivity {
                 .addOnFailureListener(e ->
                         Toast.makeText(MyEventsActivity.this, "Error loading events: " + e.getMessage(), Toast.LENGTH_SHORT).show());
     }
-
 
     private void countAttendees(String eventID, TextView attendeeView, long pax) {
         CollectionReference attendanceRef = db.collection("attendance");
@@ -147,9 +159,6 @@ public class MyEventsActivity extends AppCompatActivity {
                     int count = snapshot.size();
                     attendeeView.setText(count + " / " + pax + " attending");
                 })
-                .addOnFailureListener(e -> {
-                    attendeeView.setText("0 / " + pax + " attending");
-                });
+                .addOnFailureListener(e -> attendeeView.setText("0 / " + pax + " attending"));
     }
-
 }

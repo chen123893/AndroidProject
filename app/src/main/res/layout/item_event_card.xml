@@ -54,7 +54,7 @@
         android:gravity="end">
 
         <Button
-            android:id="@+id/btnView"
+            android:id="@+id/btnViewList"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="View"
@@ -63,7 +63,7 @@
             android:layout_marginEnd="8dp" />
 
         <Button
-            android:id="@+id/btnEdit"
+            android:id="@+id/btnEditEvent"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Edit"
