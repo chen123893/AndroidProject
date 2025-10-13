@@ -94,7 +94,7 @@ public class AdminProfileActivity extends AppCompatActivity {
         bottomNav.setOnItemSelectedListener(item -> {
             int id = item.getItemId();
             if (id == R.id.nav_my_events) {
-                startActivity(new Intent(AdminProfileActivity.this, CreateEventActivity.class)); // MUST CHANGE TO MY EVENTS
+                startActivity(new Intent(AdminProfileActivity.this, MyEventsActivity.class)); // MUST CHANGE TO MY EVENTS
                 overridePendingTransition(0, 0);
                 finish();
                 return true;

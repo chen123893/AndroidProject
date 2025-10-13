@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="#FFFFFF"
+    android:padding="8dp">
+
+    <!-- Event Card -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@drawable/event_card_background"
+        android:padding="16dp"
+        android:layout_marginBottom="8dp">
+
+        <!-- Event Title -->
+        <TextView
+            android:id="@+id/eventTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="PENANG FOOD FAIR"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="#000000"
+            android:paddingBottom="12dp" />
+
+        <!-- Event Details -->
+        <TextView
+            android:id="@+id/eventVenue"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Venue: SPICE ARENA"
+            android:textSize="14sp"
+            android:textColor="#666666"
+            android:paddingBottom="4dp" />
+
+        <TextView
+            android:id="@+id/eventDate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Date: 21 September 2025"
+            android:textSize="14sp"
+            android:textColor="#666666"
+            android:paddingBottom="4dp" />
+
+        <TextView
+            android:id="@+id/eventTime"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Time: 9:30am - 10:00pm"
+            android:textSize="14sp"
+            android:textColor="#666666"
+            android:paddingBottom="12dp" />
+
+        <!-- Attendance Info -->
+        <TextView
+            android:id="@+id/eventAttendance"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="1 / 30"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="#6A0DAD"
+            android:paddingBottom="12dp" />
+
+        <!-- Action Buttons -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:weightSum="2">
+
+            <!-- View List Button -->
+            <TextView
+                android:id="@+id/btnViewList"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                android:text="VIEW LIST"
+                android:textAllCaps="true"
+                android:gravity="center"
+                android:background="@drawable/button_view_list_background"
+                android:textColor="#6A0DAD"
+                android:textSize="12sp"
+                android:clickable="true"
+                android:focusable="true"
+                style="?android:attr/borderlessButtonStyle" />
+
+            <!-- Edit Button -->
+            <TextView
+                android:id="@+id/btnEdit"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_weight="1"
+                android:layout_marginStart="4dp"
+                android:text="EDIT"
+                android:textAllCaps="true"
+                android:gravity="center"
+                android:background="#6A0DAD"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp"
+                android:clickable="true"
+                android:focusable="true"
+                style="?android:attr/borderlessButtonStyle" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</LinearLayout>

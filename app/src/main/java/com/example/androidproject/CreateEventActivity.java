@@ -65,7 +65,7 @@ public class CreateEventActivity extends AppCompatActivity {
         bottomNav.setOnItemSelectedListener(item -> {
             int id = item.getItemId();
             if (id == R.id.nav_my_events) {
-                startActivity(new Intent(CreateEventActivity.this, AdminProfileActivity.class));
+                startActivity(new Intent(CreateEventActivity.this, MyEventsActivity.class));
                 overridePendingTransition(0, 0);
                 finish();
                 return true;
@@ -173,7 +173,8 @@ public class CreateEventActivity extends AppCompatActivity {
         event.put("pax", Integer.parseInt(paxNum));
         event.put("description", desc);
         event.put("genderSpec", genderCode);
-        event.put("createdBy", FirebaseAuth.getInstance().getCurrentUser().getUid());
+        event.put("adminID", FirebaseAuth.getInstance().getCurrentUser().getUid());
+        event.put("currentAttendees", 0); // Add this line - start with 0 attendees
 
         db.collection("events").add(event)
                 .addOnSuccessListener(documentReference -> {
