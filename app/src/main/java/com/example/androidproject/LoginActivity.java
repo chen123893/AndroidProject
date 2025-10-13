@@ -156,6 +156,7 @@ public class LoginActivity extends AppCompatActivity {
         db.collection("admin").document(uid).get()
                 .addOnSuccessListener(adminDoc -> {
                     if (adminDoc.exists()) {
+                        // Admin detected -> Go to AdminProfileActivity
                         Intent intent = new Intent(LoginActivity.this, AdminProfileActivity.class);
                         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
                         startActivity(intent);
@@ -165,7 +166,8 @@ public class LoginActivity extends AppCompatActivity {
                         db.collection("user").document(uid).get()
                                 .addOnSuccessListener(userDoc -> {
                                     if (userDoc.exists()) {
-                                        Intent intent = new Intent(LoginActivity.this, AdminProfileActivity.class);  //MUST CHANGE TO USER
+                                        // ✅ User detected -> Go to ExploreActivity
+                                        Intent intent = new Intent(LoginActivity.this, UserExploreActivity.class);
                                         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
                                         startActivity(intent);
                                         finish();
@@ -182,6 +184,7 @@ public class LoginActivity extends AppCompatActivity {
                 })
                 .addOnFailureListener(e ->
                         Toast.makeText(LoginActivity.this, "Error checking admin data.", Toast.LENGTH_SHORT).show());
+
     }
 
 }
