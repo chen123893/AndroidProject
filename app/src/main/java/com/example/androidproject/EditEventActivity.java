@@ -13,9 +13,7 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.firestore.DocumentSnapshot;
-
 
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
@@ -83,7 +81,6 @@ public class EditEventActivity extends AppCompatActivity {
                 .get()
                 .addOnSuccessListener(querySnapshot -> {
                     if (!querySnapshot.isEmpty()) {
-                        // FIX: use DocumentSnapshot (not QueryDocumentSnapshot)
                         DocumentSnapshot doc = querySnapshot.getDocuments().get(0);
                         Map<String, Object> data = doc.getData();
                         if (data == null) return;
@@ -108,7 +105,6 @@ public class EditEventActivity extends AppCompatActivity {
                 .addOnFailureListener(e ->
                         Toast.makeText(this, "Error loading event: " + e.getMessage(), Toast.LENGTH_SHORT).show());
     }
-
 
     private void setupDateTimePickers() {
         startDateTime.setOnClickListener(v -> showDateTimePicker(startDateTime, startCalendar, "Start Date & Time"));
@@ -155,10 +151,16 @@ public class EditEventActivity extends AppCompatActivity {
             return;
         }
 
-        int genderCode = 2;
+        // ✅ Make genderCode final by not reassigning it
+        final int genderCode;
         int selectedId = genderGroup.getCheckedRadioButtonId();
-        if (selectedId == R.id.male) genderCode = 0;
-        else if (selectedId == R.id.female) genderCode = 1;
+        if (selectedId == R.id.male) {
+            genderCode = 0;
+        } else if (selectedId == R.id.female) {
+            genderCode = 1;
+        } else {
+            genderCode = 2;
+        }
 
         // ✅ Update by custom eventID
         db.collection("events")

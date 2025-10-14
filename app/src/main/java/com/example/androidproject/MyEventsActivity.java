@@ -16,7 +16,6 @@ import com.google.firebase.firestore.CollectionReference;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 
-
 import java.util.Map;
 
 public class MyEventsActivity extends AppCompatActivity {
@@ -33,7 +32,7 @@ public class MyEventsActivity extends AppCompatActivity {
         eventsContainer = findViewById(R.id.events_container);
         db = FirebaseFirestore.getInstance();
 
-        // Get logged-in admin’s UID
+        // Get logged-in admin's UID
         if (FirebaseAuth.getInstance().getCurrentUser() != null) {
             adminUID = FirebaseAuth.getInstance().getCurrentUser().getUid();
         } else {
@@ -104,10 +103,13 @@ public class MyEventsActivity extends AppCompatActivity {
                         eventsContainer.addView(dateHeader);
 
                         for (QueryDocumentSnapshot doc : groupedEvents.get(date)) {
-                            // ✅ Use your custom eventID field
-                            String eventID = doc.getString("eventID");
-                            if (eventID == null || eventID.isEmpty()) {
+                            // ✅ Use your custom eventID field - make it final
+                            final String eventID; // Declare as final
+                            String tempEventID = doc.getString("eventID");
+                            if (tempEventID == null || tempEventID.isEmpty()) {
                                 eventID = doc.getId(); // fallback
+                            } else {
+                                eventID = tempEventID;
                             }
 
                             Map<String, Object> eventData = doc.getData();
@@ -144,7 +146,6 @@ public class MyEventsActivity extends AppCompatActivity {
                                 intent.putExtra("eventID", eventID);  // ✅ consistent key
                                 startActivity(intent);
                             });
-
 
                             eventsContainer.addView(eventCard);
                         }

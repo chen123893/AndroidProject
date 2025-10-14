@@ -95,13 +95,40 @@ public class SignupActivity extends AppCompatActivity {
         int genderValue = (selectedGenderId == R.id.rb_male) ? 1 : 0; // 1 = male, 0 = female
 
         // Input validation
-        if (name.isEmpty()) { etName.setError("Name is required"); etName.requestFocus(); return; }
-        if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) { etEmail.setError("Enter a valid email"); etEmail.requestFocus(); return; }
-        if (phoneNum.isEmpty() || phoneNum.length() < 10) { etPhoneNum.setError("Enter a valid phone number"); etPhoneNum.requestFocus(); return; }
-        if (password.isEmpty() || password.length() < 6) { etPassword.setError("Password must be at least 6 characters"); etPassword.requestFocus(); return; }
-        if (!password.equals(confirm)) { etConfirm.setError("Passwords do not match"); etConfirm.requestFocus(); return; }
-        if (description.isEmpty()) { etDescription.setError("Description is required"); etDescription.requestFocus(); return; }
-        if (!chkTerms.isChecked()) { Toast.makeText(this, "Please accept Terms and Privacy", Toast.LENGTH_SHORT).show(); return; }
+        if (name.isEmpty()) {
+            etName.setError("Name is required");
+            etName.requestFocus();
+            return;
+        }
+        if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+            etEmail.setError("Enter a valid email");
+            etEmail.requestFocus();
+            return;
+        }
+        if (phoneNum.isEmpty() || phoneNum.length() < 10) {
+            etPhoneNum.setError("Enter a valid phone number");
+            etPhoneNum.requestFocus();
+            return;
+        }
+        if (password.isEmpty() || password.length() < 6) {
+            etPassword.setError("Password must be at least 6 characters");
+            etPassword.requestFocus();
+            return;
+        }
+        if (!password.equals(confirm)) {
+            etConfirm.setError("Passwords do not match");
+            etConfirm.requestFocus();
+            return;
+        }
+        if (description.isEmpty()) {
+            etDescription.setError("Description is required");
+            etDescription.requestFocus();
+            return;
+        }
+        if (!chkTerms.isChecked()) {
+            Toast.makeText(this, "Please accept Terms and Privacy", Toast.LENGTH_SHORT).show();
+            return;
+        }
 
         progressBar.setVisibility(View.VISIBLE);
         btnCreateAccount.setEnabled(false);
@@ -134,18 +161,17 @@ public class SignupActivity extends AppCompatActivity {
         user.put("gender", genderValue); // 1 = Male, 0 = Female
         user.put("profilePic", null);
 
-        // ✅ Generate dynamic ID
+        // Generate dynamic ID
         String generatedID;
+        long timestamp = System.currentTimeMillis();
+
         if (collection.equals("admin")) {
-            generatedID = "A" + System.currentTimeMillis();
+            generatedID = "A" + timestamp;
             user.put("adminID", generatedID);
         } else {
-            generatedID = "U" + System.currentTimeMillis();
+            generatedID = "U" + timestamp;
             user.put("userID", generatedID);
         }
-
-        // Optional role field (makes querying easier later)
-        user.put("role", collection.equals("admin") ? "admin" : "user");
 
         db.collection(collection)
                 .document(firebaseUid)
@@ -153,7 +179,7 @@ public class SignupActivity extends AppCompatActivity {
                 .addOnSuccessListener(aVoid -> {
                     progressBar.setVisibility(View.GONE);
                     btnCreateAccount.setEnabled(true);
-                    Toast.makeText(SignupActivity.this, "Account created successfully!", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(SignupActivity.this, "Account created successfully! Your ID: " + generatedID, Toast.LENGTH_LONG).show();
 
                     Intent intent = new Intent(SignupActivity.this, LoginActivity.class);
                     intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -166,5 +192,4 @@ public class SignupActivity extends AppCompatActivity {
                     Toast.makeText(SignupActivity.this, "Failed to save user data: " + e.getMessage(), Toast.LENGTH_LONG).show();
                 });
     }
-
 }
