@@ -1,5 +1,6 @@
 package com.example.androidproject;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
@@ -17,6 +18,7 @@ import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
@@ -60,11 +62,46 @@ public class UserExploreActivity extends AppCompatActivity {
         adapter = new EventAdapter(eventList);
         recyclerView.setAdapter(adapter);
 
+        // Setup bottom navigation
+        setupBottomNavigation();
+
         // Load current user's gender first, then load events
         loadCurrentUserGender();
 
         // Search button listener
         btnSearch.setOnClickListener(v -> searchEvents());
+    }
+
+    private void setupBottomNavigation() {
+        BottomNavigationView bottomNav = findViewById(R.id.bottom_navigation);
+        bottomNav.setSelectedItemId(R.id.nav_explore);
+
+        bottomNav.setOnItemSelectedListener(item -> {
+            int id = item.getItemId();
+            if (id == R.id.nav_explore) {
+                // Already on explore page
+                return true;
+            } else if (id == R.id.nav_my_events) {
+                // Option 1: Show message (temporary)
+                Toast.makeText(UserExploreActivity.this, "My Events feature coming soon!", Toast.LENGTH_SHORT).show();
+
+                // Option 2: If you have MyEventsActivity for admins, you can redirect there
+                // startActivity(new Intent(UserExploreActivity.this, MyEventsActivity.class));
+                // overridePendingTransition(0, 0);
+                // finish();
+                return true;
+            } else if (id == R.id.nav_profile) {
+                // Option 1: Show message (temporary)
+                Toast.makeText(UserExploreActivity.this, "Profile feature coming soon!", Toast.LENGTH_SHORT).show();
+
+                // Option 2: If you have a profile activity, redirect there
+                // startActivity(new Intent(UserExploreActivity.this, ProfileActivity.class));
+                // overridePendingTransition(0, 0);
+                // finish();
+                return true;
+            }
+            return false;
+        });
     }
 
     private void loadCurrentUserGender() {
@@ -101,48 +138,17 @@ public class UserExploreActivity extends AppCompatActivity {
                     eventList.clear();
                     for (QueryDocumentSnapshot doc : querySnapshot) {
                         try {
-                            Event event = doc.toObject(Event.class);
-                            event.setId(doc.getId());
-
-                            Log.d("UserExplore", "Event: " + event.getEventName() + ", GenderSpec: " + event.getGenderSpec());
-
-                            // Filter by gender specification
-                            if (shouldShowEvent(event)) {
+                            Event event = parseEventFromDocument(doc);
+                            if (event != null && shouldShowEvent(event)) {
                                 eventList.add(event);
                             }
                         } catch (Exception e) {
                             Log.e("UserExplore", "Error parsing event: " + e.getMessage());
-                            // Fallback to manual mapping if toObject fails
-                            try {
-                                Event fallbackEvent = new Event();
-                                fallbackEvent.setId(doc.getId());
-                                fallbackEvent.setAdminID(doc.getString("adminID"));
-                                fallbackEvent.setDescription(doc.getString("description"));
-                                fallbackEvent.setEndDateTime(doc.getString("endDateTime"));
-                                fallbackEvent.setEventName(doc.getString("eventName"));
-                                fallbackEvent.setGenderSpec(doc.getString("genderSpec"));
-                                fallbackEvent.setStartDateTime(doc.getString("startDateTime"));
-                                fallbackEvent.setVenue(doc.getString("venue"));
-
-                                // Handle numeric fields
-                                Long currentAttendees = doc.getLong("currentAttendees");
-                                fallbackEvent.setCurrentAttendees(currentAttendees != null ? currentAttendees.intValue() : 0);
-
-                                Long pax = doc.getLong("pax");
-                                fallbackEvent.setPax(pax != null ? pax.intValue() : 0);
-
-                                if (shouldShowEvent(fallbackEvent)) {
-                                    eventList.add(fallbackEvent);
-                                }
-                            } catch (Exception ex) {
-                                Log.e("UserExplore", "Error in fallback parsing: " + ex.getMessage());
-                            }
                         }
                     }
                     adapter.notifyDataSetChanged();
                     Log.d("UserExplore", "Events displayed: " + eventList.size());
 
-                    // If no events loaded, show message
                     if (eventList.isEmpty()) {
                         Toast.makeText(UserExploreActivity.this, "No events found", Toast.LENGTH_SHORT).show();
                     }
@@ -153,15 +159,43 @@ public class UserExploreActivity extends AppCompatActivity {
                 });
     }
 
-    private boolean shouldShowEvent(Event event) {
-        // If genderSpec is null or empty, show to everyone
-        if (event.getGenderSpec() == null || event.getGenderSpec().isEmpty()) {
-            return true;
-        }
+    private Event parseEventFromDocument(QueryDocumentSnapshot doc) {
+        Event event = new Event();
+        try {
+            event.setId(doc.getId());
+            event.setEventID(doc.getString("eventID")); // Your custom eventID field
+            event.setAdminID(doc.getString("adminID"));
+            event.setDescription(doc.getString("description"));
+            event.setEndDateTime(doc.getString("endDateTime"));
+            event.setEventName(doc.getString("eventName"));
+            event.setStartDateTime(doc.getString("startDateTime"));
+            event.setVenue(doc.getString("venue"));
 
-        // If genderSpec is "All" or "Both", show to everyone
-        String spec = event.getGenderSpec().toLowerCase();
-        if (spec.equals("all") || spec.equals("both") || spec.equals("any")) {
+            // Handle genderSpec - it's stored as Long in Firestore
+            Long genderSpec = doc.getLong("genderSpec");
+            if (genderSpec != null) {
+                event.setGenderSpec(genderSpec.intValue());
+            } else {
+                event.setGenderSpec(2); // Default to "None"
+            }
+
+            // Handle numeric fields
+            Long currentAttendees = doc.getLong("currentAttendees");
+            event.setCurrentAttendees(currentAttendees != null ? currentAttendees.intValue() : 0);
+
+            Long pax = doc.getLong("pax");
+            event.setPax(pax != null ? pax.intValue() : 0);
+
+            return event;
+        } catch (Exception e) {
+            Log.e("UserExplore", "Error in event parsing: " + e.getMessage());
+            return null;
+        }
+    }
+
+    private boolean shouldShowEvent(Event event) {
+        // If genderSpec is 2 (None/Any), show to everyone
+        if (event.getGenderSpec() == 2) {
             return true;
         }
 
@@ -171,13 +205,8 @@ public class UserExploreActivity extends AppCompatActivity {
         }
 
         // Check if event matches user's gender
-        if (currentUserGender == 1) { // Male
-            return spec.equals("male") || spec.equals("1") || spec.equals("m");
-        } else if (currentUserGender == 0) { // Female
-            return spec.equals("female") || spec.equals("0") || spec.equals("f");
-        }
-
-        return true; // Default to showing if gender is unknown
+        // genderSpec: 0 = Male, 1 = Female, 2 = Any/None
+        return event.getGenderSpec() == currentUserGender;
     }
 
     private void searchEvents() {
@@ -195,50 +224,19 @@ public class UserExploreActivity extends AppCompatActivity {
                     eventList.clear();
                     for (QueryDocumentSnapshot doc : querySnapshot) {
                         try {
-                            Event event = doc.toObject(Event.class);
-                            event.setId(doc.getId());
+                            Event event = parseEventFromDocument(doc);
+                            if (event != null) {
+                                // Check if event matches search keyword and gender filter
+                                boolean matchesSearch = (event.getEventName() != null && event.getEventName().toLowerCase().contains(keyword)) ||
+                                        (event.getVenue() != null && event.getVenue().toLowerCase().contains(keyword)) ||
+                                        (event.getDescription() != null && event.getDescription().toLowerCase().contains(keyword));
 
-                            // Check if event matches search keyword and gender filter
-                            if ((event.getEventName() != null && event.getEventName().toLowerCase().contains(keyword)) ||
-                                    (event.getVenue() != null && event.getVenue().toLowerCase().contains(keyword)) ||
-                                    (event.getDescription() != null && event.getDescription().toLowerCase().contains(keyword))) {
-
-                                if (shouldShowEvent(event)) {
+                                if (matchesSearch && shouldShowEvent(event)) {
                                     eventList.add(event);
                                 }
                             }
                         } catch (Exception e) {
                             Log.e("UserExplore", "Error parsing event in search: " + e.getMessage());
-                            // Fallback to manual mapping
-                            try {
-                                Event fallbackEvent = new Event();
-                                fallbackEvent.setId(doc.getId());
-                                fallbackEvent.setAdminID(doc.getString("adminID"));
-                                fallbackEvent.setDescription(doc.getString("description"));
-                                fallbackEvent.setEndDateTime(doc.getString("endDateTime"));
-                                fallbackEvent.setEventName(doc.getString("eventName"));
-                                fallbackEvent.setGenderSpec(doc.getString("genderSpec"));
-                                fallbackEvent.setStartDateTime(doc.getString("startDateTime"));
-                                fallbackEvent.setVenue(doc.getString("venue"));
-
-                                Long currentAttendees = doc.getLong("currentAttendees");
-                                fallbackEvent.setCurrentAttendees(currentAttendees != null ? currentAttendees.intValue() : 0);
-
-                                Long pax = doc.getLong("pax");
-                                fallbackEvent.setPax(pax != null ? pax.intValue() : 0);
-
-                                // Check search criteria
-                                if ((fallbackEvent.getEventName() != null && fallbackEvent.getEventName().toLowerCase().contains(keyword)) ||
-                                        (fallbackEvent.getVenue() != null && fallbackEvent.getVenue().toLowerCase().contains(keyword)) ||
-                                        (fallbackEvent.getDescription() != null && fallbackEvent.getDescription().toLowerCase().contains(keyword))) {
-
-                                    if (shouldShowEvent(fallbackEvent)) {
-                                        eventList.add(fallbackEvent);
-                                    }
-                                }
-                            } catch (Exception ex) {
-                                Log.e("UserExplore", "Error in fallback search parsing: " + ex.getMessage());
-                            }
                         }
                     }
                     adapter.notifyDataSetChanged();
@@ -257,11 +255,12 @@ public class UserExploreActivity extends AppCompatActivity {
     // ---------------------- EVENT MODEL -----------------------
     public static class Event {
         private String id;
+        private String eventID; // Your custom eventID field
         private String adminID;
         private String description;
         private String endDateTime;
         private String eventName;
-        private String genderSpec;
+        private int genderSpec; // Changed to int: 0=Male, 1=Female, 2=None/Any
         private String startDateTime;
         private String venue;
         private int currentAttendees;
@@ -272,6 +271,9 @@ public class UserExploreActivity extends AppCompatActivity {
         // Getters and Setters
         public String getId() { return id; }
         public void setId(String id) { this.id = id; }
+
+        public String getEventID() { return eventID; }
+        public void setEventID(String eventID) { this.eventID = eventID; }
 
         public String getAdminID() { return adminID; }
         public void setAdminID(String adminID) { this.adminID = adminID; }
@@ -285,8 +287,8 @@ public class UserExploreActivity extends AppCompatActivity {
         public String getEventName() { return eventName; }
         public void setEventName(String eventName) { this.eventName = eventName; }
 
-        public String getGenderSpec() { return genderSpec; }
-        public void setGenderSpec(String genderSpec) { this.genderSpec = genderSpec; }
+        public int getGenderSpec() { return genderSpec; }
+        public void setGenderSpec(int genderSpec) { this.genderSpec = genderSpec; }
 
         public String getStartDateTime() { return startDateTime; }
         public void setStartDateTime(String startDateTime) { this.startDateTime = startDateTime; }
@@ -377,8 +379,10 @@ public class UserExploreActivity extends AppCompatActivity {
         // ------------------ CHECK IF USER JOINED ------------------
         private void checkIfJoined(Event event, Button joinButton) {
             String userId = mAuth.getCurrentUser().getUid();
+            String eventDocId = event.getId(); // Use the Firestore document ID
+
             db.collection("attendance")
-                    .whereEqualTo("eventID", event.getId())
+                    .whereEqualTo("eventID", eventDocId)
                     .whereEqualTo("userID", userId)
                     .get()
                     .addOnSuccessListener(querySnapshot -> {
@@ -389,7 +393,7 @@ public class UserExploreActivity extends AppCompatActivity {
                         } else {
                             joinButton.setText("Join");
                             joinButton.setEnabled(true);
-                            joinButton.setBackgroundTintList(ContextCompat.getColorStateList(UserExploreActivity.this, android.R.color.holo_blue_light));
+                            joinButton.setBackgroundTintList(ContextCompat.getColorStateList(UserExploreActivity.this, R.color.colorPrimary));
                         }
                     })
                     .addOnFailureListener(e -> {
@@ -400,7 +404,9 @@ public class UserExploreActivity extends AppCompatActivity {
         // ------------------ JOIN EVENT ------------------
         private void joinEvent(Event event, Button joinButton) {
             String userId = mAuth.getCurrentUser().getUid();
-            Log.d("EventAdapter", "Attempting to join event: " + event.getId() + " by user: " + userId);
+            String eventDocId = event.getId(); // Use the Firestore document ID
+
+            Log.d("EventAdapter", "Attempting to join event: " + eventDocId + " by user: " + userId);
 
             // Check if event is full before joining
             if (event.getCurrentAttendees() >= event.getPax()) {
@@ -409,7 +415,7 @@ public class UserExploreActivity extends AppCompatActivity {
             }
 
             Map<String, Object> attendance = new HashMap<>();
-            attendance.put("eventID", event.getId());
+            attendance.put("eventID", eventDocId);
             attendance.put("userID", userId);
 
             db.collection("attendance")
@@ -418,8 +424,8 @@ public class UserExploreActivity extends AppCompatActivity {
                         Log.d("EventAdapter", "Successfully joined event");
                         Toast.makeText(UserExploreActivity.this, "Joined successfully!", Toast.LENGTH_SHORT).show();
 
-                        // Update attendee count - FIXED: collection name should be "events" not "event"
-                        DocumentReference eventRef = db.collection("events").document(event.getId());
+                        // Update attendee count
+                        DocumentReference eventRef = db.collection("events").document(eventDocId);
                         eventRef.update("currentAttendees", event.getCurrentAttendees() + 1)
                                 .addOnSuccessListener(aVoid -> {
                                     Log.d("EventAdapter", "Successfully updated attendee count");
