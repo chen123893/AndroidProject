@@ -12,8 +12,10 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.QueryDocumentSnapshot;
+import com.google.firebase.firestore.DocumentSnapshot;
+
 
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
@@ -28,7 +30,7 @@ public class EditEventActivity extends AppCompatActivity {
     private ImageButton backBtn;
     private FirebaseFirestore db;
 
-    private String eventId;
+    private String eventID;
     private Calendar startCalendar, endCalendar;
     private SimpleDateFormat dateTimeFormatter;
 
@@ -55,9 +57,9 @@ public class EditEventActivity extends AppCompatActivity {
         startCalendar = Calendar.getInstance();
         endCalendar = Calendar.getInstance();
 
-        // Get event ID from intent
-        eventId = getIntent().getStringExtra("eventId");
-        if (eventId == null) {
+        // ✅ Get custom eventID instead of Firestore doc ID
+        eventID = getIntent().getStringExtra("eventID");
+        if (eventID == null) {
             Toast.makeText(this, "No event ID found", Toast.LENGTH_SHORT).show();
             finish();
             return;
@@ -76,10 +78,14 @@ public class EditEventActivity extends AppCompatActivity {
     }
 
     private void loadEventData() {
-        db.collection("events").document(eventId).get()
-                .addOnSuccessListener(documentSnapshot -> {
-                    if (documentSnapshot.exists()) {
-                        Map<String, Object> data = documentSnapshot.getData();
+        // ✅ Query by eventID field
+        db.collection("events").whereEqualTo("eventID", eventID)
+                .get()
+                .addOnSuccessListener(querySnapshot -> {
+                    if (!querySnapshot.isEmpty()) {
+                        // FIX: use DocumentSnapshot (not QueryDocumentSnapshot)
+                        DocumentSnapshot doc = querySnapshot.getDocuments().get(0);
+                        Map<String, Object> data = doc.getData();
                         if (data == null) return;
 
                         eventName.setText((String) data.get("eventName"));
@@ -95,11 +101,14 @@ public class EditEventActivity extends AppCompatActivity {
                             else if (genderSpec == 1) genderGroup.check(R.id.female);
                             else genderGroup.check(R.id.none);
                         }
+                    } else {
+                        Toast.makeText(this, "Event not found", Toast.LENGTH_SHORT).show();
                     }
                 })
                 .addOnFailureListener(e ->
                         Toast.makeText(this, "Error loading event: " + e.getMessage(), Toast.LENGTH_SHORT).show());
     }
+
 
     private void setupDateTimePickers() {
         startDateTime.setOnClickListener(v -> showDateTimePicker(startDateTime, startCalendar, "Start Date & Time"));
@@ -151,20 +160,31 @@ public class EditEventActivity extends AppCompatActivity {
         if (selectedId == R.id.male) genderCode = 0;
         else if (selectedId == R.id.female) genderCode = 1;
 
-        DocumentReference eventRef = db.collection("events").document(eventId);
-        eventRef.update(
-                "eventName", name,
-                "venue", loc,
-                "startDateTime", start,
-                "endDateTime", end,
-                "pax", Integer.parseInt(paxNum),
-                "description", desc,
-                "genderSpec", genderCode
-        ).addOnSuccessListener(aVoid -> {
-            Toast.makeText(this, "Event updated successfully!", Toast.LENGTH_SHORT).show();
-            startActivity(new Intent(EditEventActivity.this, MyEventsActivity.class));
-            finish();
-        }).addOnFailureListener(e ->
-                Toast.makeText(this, "Error updating event: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+        // ✅ Update by custom eventID
+        db.collection("events")
+                .whereEqualTo("eventID", eventID)
+                .get()
+                .addOnSuccessListener(querySnapshot -> {
+                    if (!querySnapshot.isEmpty()) {
+                        String docId = querySnapshot.getDocuments().get(0).getId();
+
+                        db.collection("events").document(docId).update(
+                                "eventName", name,
+                                "venue", loc,
+                                "startDateTime", start,
+                                "endDateTime", end,
+                                "pax", Integer.parseInt(paxNum),
+                                "description", desc,
+                                "genderSpec", genderCode
+                        ).addOnSuccessListener(aVoid -> {
+                            Toast.makeText(this, "Event updated successfully!", Toast.LENGTH_SHORT).show();
+                            startActivity(new Intent(EditEventActivity.this, MyEventsActivity.class));
+                            finish();
+                        }).addOnFailureListener(e ->
+                                Toast.makeText(this, "Error updating event: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                    }
+                })
+                .addOnFailureListener(e ->
+                        Toast.makeText(this, "Error finding event: " + e.getMessage(), Toast.LENGTH_SHORT).show());
     }
 }

@@ -154,18 +154,20 @@ public class CreateEventActivity extends AppCompatActivity {
             return;
         }
 
-        // Validate date-time logic
         if (!endCalendar.after(startCalendar)) {
             Toast.makeText(this, "End date-time must be after start date-time", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        int genderCode = 2; // Default None
+        int genderCode = 2;
         int selectedId = genderGroup.getCheckedRadioButtonId();
         if (selectedId == R.id.male) genderCode = 0;
         else if (selectedId == R.id.female) genderCode = 1;
 
+        String eventID = "E" + System.currentTimeMillis();
+
         Map<String, Object> event = new HashMap<>();
+        event.put("eventID", eventID);
         event.put("eventName", name);
         event.put("venue", loc);
         event.put("startDateTime", start);
@@ -173,16 +175,41 @@ public class CreateEventActivity extends AppCompatActivity {
         event.put("pax", Integer.parseInt(paxNum));
         event.put("description", desc);
         event.put("genderSpec", genderCode);
-        event.put("adminID", FirebaseAuth.getInstance().getCurrentUser().getUid());
-        event.put("currentAttendees", 0); // Add this line - start with 0 attendees
+        event.put("currentAttendees", 0);
 
-        db.collection("events").add(event)
-                .addOnSuccessListener(documentReference -> {
-                    Toast.makeText(this, "Event created successfully!", Toast.LENGTH_SHORT).show();
-                    clearFields();
+        // Get the admin’s Firestore record
+        // inside createEvent()
+        String adminUid = FirebaseAuth.getInstance().getCurrentUser().getUid();
+
+        db.collection("admin")
+                .document(adminUid)
+                .get()
+                .addOnSuccessListener(doc -> {
+                    if (doc.exists()) {
+                        String adminID = doc.getString("adminID"); // ✅ use the same stored Axxxx
+                        if (adminID != null) {
+                            event.put("adminID", adminID);
+                        } else {
+                            Toast.makeText(this, "Admin ID not found. Please re-login.", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                    }
+
+                    db.collection("events")
+                            .document(eventID)
+                            .set(event)
+                            .addOnSuccessListener(unused -> {
+                                Toast.makeText(this, "Event created successfully!", Toast.LENGTH_SHORT).show();
+                                clearFields();
+                            })
+                            .addOnFailureListener(e ->
+                                    Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show());
                 })
-                .addOnFailureListener(e -> Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                .addOnFailureListener(e ->
+                        Toast.makeText(this, "Failed to fetch admin ID: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+
     }
+
 
     private void clearFields() {
         eventName.setText("");

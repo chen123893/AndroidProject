@@ -1,19 +1,18 @@
 package com.example.androidproject;
 
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-
 import android.app.ProgressDialog;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
-import android.util.Log;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.RadioButton;
 import android.widget.Toast;
 
+import com.google.android.material.bottomnavigation.BottomNavigationView;
+import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentReference;
@@ -21,8 +20,6 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
 import com.squareup.picasso.Picasso;
-import com.google.android.material.textfield.TextInputEditText;
-import com.google.android.material.bottomnavigation.BottomNavigationView;
 
 import java.io.InputStream;
 import java.util.HashMap;
@@ -43,18 +40,18 @@ public class AdminProfileActivity extends AppCompatActivity {
 
     private ProgressDialog progressDialog;
     private boolean isEditing = false;
+    private String adminDocId;
+    private String currentAdminID; // store the actual "Axxxx" ID
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_admin_profile);
 
-        // Initialize Firebase
         auth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
         storageRef = FirebaseStorage.getInstance().getReference("adminProfilePics");
 
-        // Initialize views
         etName = findViewById(R.id.etName);
         etEmail = findViewById(R.id.etEmail);
         etPhone = findViewById(R.id.etPhone);
@@ -68,7 +65,6 @@ public class AdminProfileActivity extends AppCompatActivity {
         progressDialog = new ProgressDialog(this);
         progressDialog.setMessage("Saving profile...");
 
-        // Disable editing by default
         setEditingEnabled(false);
 
         FirebaseUser currentUser = auth.getCurrentUser();
@@ -79,6 +75,7 @@ public class AdminProfileActivity extends AppCompatActivity {
             return;
         }
 
+        // ✅ Load admin profile directly by UID
         loadAdminProfile(currentUser.getUid());
 
         btnEditPic.setOnClickListener(v -> toggleEditMode());
@@ -87,14 +84,13 @@ public class AdminProfileActivity extends AppCompatActivity {
             else Toast.makeText(this, "Click Edit first to modify profile.", Toast.LENGTH_SHORT).show();
         });
 
-        // Bottom navigation
         BottomNavigationView bottomNav = findViewById(R.id.bottom_navigation);
         bottomNav.setSelectedItemId(R.id.nav_profile);
 
         bottomNav.setOnItemSelectedListener(item -> {
             int id = item.getItemId();
             if (id == R.id.nav_my_events) {
-                startActivity(new Intent(AdminProfileActivity.this, MyEventsActivity.class)); // MUST CHANGE TO MY EVENTS
+                startActivity(new Intent(AdminProfileActivity.this, MyEventsActivity.class));
                 overridePendingTransition(0, 0);
                 finish();
                 return true;
@@ -104,7 +100,6 @@ public class AdminProfileActivity extends AppCompatActivity {
                 finish();
                 return true;
             } else if (id == R.id.nav_profile) {
-                // Already on profile page
                 return true;
             }
             return false;
@@ -114,104 +109,52 @@ public class AdminProfileActivity extends AppCompatActivity {
     }
 
     private void loadAdminProfile(String uid) {
-        Log.d("AdminProfile", "Loading profile for UID: " + uid);
-        db.collection("admin").document(uid)
-                .get()
-                .addOnSuccessListener(documentSnapshot -> {
-                    if (documentSnapshot.exists()) {
-                        Log.d("AdminProfile", "Profile found: " + documentSnapshot.getData());
+        db.collection("admin").document(uid).get()
+                .addOnSuccessListener(doc -> {
+                    if (doc.exists()) {
+                        adminDocId = doc.getId();
+                        currentAdminID = doc.getString("adminID"); // ✅ get "Axxxx" format
 
-                        // Debug each field individually
-                        String name = documentSnapshot.getString("name");
-                        String email = documentSnapshot.getString("email");
-                        String phoneNum = documentSnapshot.getString("phoneNum");
-                        String password = documentSnapshot.getString("password");
-                        Long gender = documentSnapshot.getLong("gender");
-                        String imageUrl = documentSnapshot.getString("profilePic");
+                        String name = doc.getString("name");
+                        String email = doc.getString("email");
+                        String phone = doc.getString("phoneNumber");
+                        String password = doc.getString("password");
+                        Long gender = doc.getLong("gender");
+                        String imageUrl = doc.getString("profilePic");
 
-                        Log.d("AdminProfile", "Name: " + name);
-                        Log.d("AdminProfile", "Email: " + email);
-                        Log.d("AdminProfile", "Phone: " + phoneNum);
-                        Log.d("AdminProfile", "Password: " + password);
-                        Log.d("AdminProfile", "Gender: " + gender);
-                        Log.d("AdminProfile", "Image URL: " + imageUrl);
-
-                        // Set values
                         etName.setText(name != null ? name : "");
                         etEmail.setText(email != null ? email : "");
-                        etPhone.setText(phoneNum != null ? phoneNum : "");
+                        etPhone.setText(phone != null ? phone : "");
                         etPassword.setText(password != null ? password : "");
 
                         if (gender != null) {
-                            if (gender == 0) {
-                                radioMale.setChecked(true);
-                                Log.d("AdminProfile", "Gender set to Male");
-                            } else if (gender == 1) {
-                                radioFemale.setChecked(true);
-                                Log.d("AdminProfile", "Gender set to Female");
-                            } else {
-                                Log.d("AdminProfile", "Gender set to None/Other");
-                            }
-                        } else {
-                            Log.d("AdminProfile", "Gender is null");
+                            if (gender == 1) radioMale.setChecked(true);
+                            else if (gender == 0) radioFemale.setChecked(true);
                         }
 
                         if (imageUrl != null && !imageUrl.isEmpty()) {
                             Picasso.get().load(imageUrl).fit().centerCrop().into(profilePic);
-                            Log.d("AdminProfile", "Image loaded from URL");
                         } else {
                             profilePic.setImageResource(R.drawable.tofu);
-                            Log.d("AdminProfile", "Using default image");
                         }
-                    } else {
-                        Log.d("AdminProfile", "Profile not found, creating default");
-                        Toast.makeText(this, "Admin profile not found.", Toast.LENGTH_SHORT).show();
-                        profilePic.setImageResource(R.drawable.tofu);
 
-                        // Create a default profile if it doesn't exist
-                        createDefaultProfile(uid);
+                    } else {
+                        Toast.makeText(this, "Admin profile not found.", Toast.LENGTH_SHORT).show();
                     }
                 })
-                .addOnFailureListener(e -> {
-                    Log.e("AdminProfile", "Error loading profile: " + e.getMessage());
-                    Toast.makeText(this, "Error loading profile: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                });
-    }
-
-    private void createDefaultProfile(String uid) {
-        FirebaseUser user = auth.getCurrentUser();
-        if (user != null) {
-            Map<String, Object> defaultProfile = new HashMap<>();
-            defaultProfile.put("name", user.getDisplayName() != null ? user.getDisplayName() : "Admin User");
-            defaultProfile.put("email", user.getEmail());
-            defaultProfile.put("phoneNum", "");
-            defaultProfile.put("password", "");
-            defaultProfile.put("gender", 2);
-            defaultProfile.put("profilePic", "");
-
-            db.collection("admin").document(uid)
-                    .set(defaultProfile)
-                    .addOnSuccessListener(aVoid -> {
-                        Toast.makeText(this, "Default profile created.", Toast.LENGTH_SHORT).show();
-                        loadAdminProfile(uid);
-                    })
-                    .addOnFailureListener(e ->
-                            Toast.makeText(this, "Failed to create profile: " + e.getMessage(), Toast.LENGTH_SHORT).show());
-        }
+                .addOnFailureListener(e ->
+                        Toast.makeText(this, "Failed to load profile: " + e.getMessage(), Toast.LENGTH_SHORT).show());
     }
 
     private void toggleEditMode() {
         isEditing = !isEditing;
         setEditingEnabled(isEditing);
+        btnEditPic.setText(isEditing ? "Cancel Edit" : "Edit Profile");
 
-        if (isEditing) {
-            btnEditPic.setText("Cancel Edit");
+        if (isEditing)
             profilePic.setOnClickListener(v -> openImagePicker());
-        } else {
-            btnEditPic.setText("Edit Profile");
+        else
             profilePic.setOnClickListener(null);
-            imageUri = null;
-        }
     }
 
     private void setEditingEnabled(boolean enabled) {
@@ -240,6 +183,11 @@ public class AdminProfileActivity extends AppCompatActivity {
     }
 
     private void updateProfile() {
+        if (adminDocId == null) {
+            Toast.makeText(this, "No admin profile loaded.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         progressDialog.show();
 
         String name = etName.getText().toString().trim();
@@ -247,68 +195,30 @@ public class AdminProfileActivity extends AppCompatActivity {
         String phone = etPhone.getText().toString().trim();
         String password = etPassword.getText().toString().trim();
 
-        // Make gender final so it can be used in lambda
-        final int gender;
-        if (radioMale.isChecked()) gender = 0;
-        else if (radioFemale.isChecked()) gender = 1;
-        else gender = 2;
+        int gender = radioMale.isChecked() ? 1 : 0;
 
-        FirebaseUser user = auth.getCurrentUser();
-        if (user == null) {
-            progressDialog.dismiss();
-            Toast.makeText(this, "User not found. Please re-login.", Toast.LENGTH_SHORT).show();
-            return;
-        }
+        DocumentReference docRef = db.collection("admin").document(adminDocId);
 
-        String uid = user.getUid();
-        DocumentReference docRef = db.collection("admin").document(uid);
-
-        docRef.get().addOnSuccessListener(snapshot -> {
-            String existingImageUrl = snapshot.getString("profilePic");
-
-            user.updateEmail(email)
-                    .addOnSuccessListener(unused -> user.updatePassword(password)
-                            .addOnSuccessListener(unused1 -> {
-                                if (imageUri != null) {
-                                    StorageReference fileRef = storageRef.child(uid + ".jpg");
-                                    try {
-                                        InputStream inputStream = getContentResolver().openInputStream(imageUri);
-                                        if (inputStream == null) {
-                                            progressDialog.dismiss();
-                                            Toast.makeText(AdminProfileActivity.this, "Cannot open image file.", Toast.LENGTH_SHORT).show();
-                                            return;
-                                        }
-
-                                        fileRef.putStream(inputStream)
-                                                .addOnSuccessListener(taskSnapshot -> {
-                                                    fileRef.getDownloadUrl().addOnSuccessListener(uri -> {
-                                                        saveProfileToFirestore(docRef, name, email, phone, password, gender, uri.toString());
-                                                    });
-                                                })
-                                                .addOnFailureListener(e -> {
-                                                    progressDialog.dismiss();
-                                                    Toast.makeText(AdminProfileActivity.this, "Image upload failed: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                                                });
-                                    } catch (Exception e) {
-                                        progressDialog.dismiss();
-                                        Toast.makeText(AdminProfileActivity.this, "Failed to open image: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                                    }
-                                } else {
-                                    saveProfileToFirestore(docRef, name, email, phone, password, gender, existingImageUrl);
-                                }
-                            })
+        if (imageUri != null) {
+            StorageReference fileRef = storageRef.child(adminDocId + ".jpg");
+            try (InputStream inputStream = getContentResolver().openInputStream(imageUri)) {
+                if (inputStream != null) {
+                    fileRef.putStream(inputStream)
+                            .addOnSuccessListener(taskSnapshot ->
+                                    fileRef.getDownloadUrl().addOnSuccessListener(uri ->
+                                            saveProfileToFirestore(docRef, name, email, phone, password, gender, uri.toString())))
                             .addOnFailureListener(e -> {
                                 progressDialog.dismiss();
-                                Toast.makeText(AdminProfileActivity.this, "Password update failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                            }))
-                    .addOnFailureListener(e -> {
-                        progressDialog.dismiss();
-                        Toast.makeText(AdminProfileActivity.this, "Email update failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                    });
-        }).addOnFailureListener(e -> {
-            progressDialog.dismiss();
-            Toast.makeText(AdminProfileActivity.this, "Failed to retrieve profile: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-        });
+                                Toast.makeText(this, "Image upload failed: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                            });
+                }
+            } catch (Exception e) {
+                progressDialog.dismiss();
+                Toast.makeText(this, "Failed to open image: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            }
+        } else {
+            saveProfileToFirestore(docRef, name, email, phone, password, gender, null);
+        }
     }
 
     private void saveProfileToFirestore(DocumentReference docRef, String name, String email, String phone,
@@ -317,21 +227,20 @@ public class AdminProfileActivity extends AppCompatActivity {
         Map<String, Object> profileData = new HashMap<>();
         profileData.put("name", name);
         profileData.put("email", email);
-        profileData.put("phoneNum", phone);
+        profileData.put("phoneNumber", phone);
         profileData.put("password", password);
         profileData.put("gender", gender);
-        if (imageUrl != null && !imageUrl.isEmpty()) profileData.put("profilePic", imageUrl);
+        if (imageUrl != null) profileData.put("profilePic", imageUrl);
 
         docRef.set(profileData, com.google.firebase.firestore.SetOptions.merge())
                 .addOnSuccessListener(aVoid -> {
                     progressDialog.dismiss();
                     Toast.makeText(this, "Profile updated successfully!", Toast.LENGTH_SHORT).show();
-                    loadAdminProfile(docRef.getId());
                     toggleEditMode();
                 })
                 .addOnFailureListener(e -> {
                     progressDialog.dismiss();
-                    Toast.makeText(this, "Failed to update Firestore: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "Update failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                 });
     }
 

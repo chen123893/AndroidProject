@@ -16,6 +16,7 @@ import com.google.firebase.firestore.CollectionReference;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 
+
 import java.util.Map;
 
 public class MyEventsActivity extends AppCompatActivity {
@@ -36,7 +37,7 @@ public class MyEventsActivity extends AppCompatActivity {
         if (FirebaseAuth.getInstance().getCurrentUser() != null) {
             adminUID = FirebaseAuth.getInstance().getCurrentUser().getUid();
         } else {
-            adminUID = "TEST_ADMIN_UID"; // for emulator fallback
+            adminUID = "TEST_ADMIN_UID"; // fallback
         }
 
         // Bottom navigation setup
@@ -102,9 +103,13 @@ public class MyEventsActivity extends AppCompatActivity {
                         dateHeader.setTypeface(null, android.graphics.Typeface.BOLD);
                         eventsContainer.addView(dateHeader);
 
-                        // Add each event card under this date
                         for (QueryDocumentSnapshot doc : groupedEvents.get(date)) {
-                            String eventID = doc.getId();
+                            // ✅ Use your custom eventID field
+                            String eventID = doc.getString("eventID");
+                            if (eventID == null || eventID.isEmpty()) {
+                                eventID = doc.getId(); // fallback
+                            }
+
                             Map<String, Object> eventData = doc.getData();
 
                             String eventName = (String) eventData.get("eventName");
@@ -126,21 +131,20 @@ public class MyEventsActivity extends AppCompatActivity {
 
                             countAttendees(eventID, paxView, pax);
 
-                            // Edit button
                             Button editBtn = eventCard.findViewById(R.id.btnEditEvent);
                             editBtn.setOnClickListener(v -> {
                                 Intent intent = new Intent(MyEventsActivity.this, EditEventActivity.class);
-                                intent.putExtra("eventId", eventID);
+                                intent.putExtra("eventID", eventID);  // ✅ consistent key
                                 startActivity(intent);
                             });
 
-                            // ✅ View Attendees button (fixed)
                             Button viewBtn = eventCard.findViewById(R.id.btnViewList);
                             viewBtn.setOnClickListener(v -> {
                                 Intent intent = new Intent(MyEventsActivity.this, ViewListActivity.class);
-                                intent.putExtra("eventID", eventID); // fixed line
+                                intent.putExtra("eventID", eventID);  // ✅ consistent key
                                 startActivity(intent);
                             });
+
 
                             eventsContainer.addView(eventCard);
                         }
