@@ -123,7 +123,7 @@ public class SignupActivity extends AppCompatActivity {
                 });
     }
 
-    private void saveUserToFirestore(String userId, String name, String email,
+    private void saveUserToFirestore(String firebaseUid, String name, String email,
                                      String phoneNum, String description, int genderValue, String collection) {
 
         Map<String, Object> user = new HashMap<>();
@@ -131,12 +131,24 @@ public class SignupActivity extends AppCompatActivity {
         user.put("email", email);
         user.put("phoneNumber", phoneNum);
         user.put("description", description);
-        user.put("gender", genderValue); // ✅ 1 = Male, 0 = Female
-        user.put("userID", System.currentTimeMillis());
+        user.put("gender", genderValue); // 1 = Male, 0 = Female
         user.put("profilePic", null);
 
+        // ✅ Generate dynamic ID
+        String generatedID;
+        if (collection.equals("admin")) {
+            generatedID = "A" + System.currentTimeMillis();
+            user.put("adminID", generatedID);
+        } else {
+            generatedID = "U" + System.currentTimeMillis();
+            user.put("userID", generatedID);
+        }
+
+        // Optional role field (makes querying easier later)
+        user.put("role", collection.equals("admin") ? "admin" : "user");
+
         db.collection(collection)
-                .document(userId)
+                .document(firebaseUid)
                 .set(user)
                 .addOnSuccessListener(aVoid -> {
                     progressBar.setVisibility(View.GONE);
@@ -154,4 +166,5 @@ public class SignupActivity extends AppCompatActivity {
                     Toast.makeText(SignupActivity.this, "Failed to save user data: " + e.getMessage(), Toast.LENGTH_LONG).show();
                 });
     }
+
 }
