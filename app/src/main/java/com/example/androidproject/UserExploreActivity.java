@@ -79,25 +79,15 @@ public class UserExploreActivity extends AppCompatActivity {
         bottomNav.setOnItemSelectedListener(item -> {
             int id = item.getItemId();
             if (id == R.id.nav_explore) {
-                // Already on explore page
                 return true;
-            } else if (id == R.id.nav_my_events) {
-                // Option 1: Show message (temporary)
+            } else if (id == R.id.nav_timetable) {
                 Toast.makeText(UserExploreActivity.this, "My Events feature coming soon!", Toast.LENGTH_SHORT).show();
-
-                // Option 2: If you have MyEventsActivity for admins, you can redirect there
-                // startActivity(new Intent(UserExploreActivity.this, MyEventsActivity.class));
-                // overridePendingTransition(0, 0);
-                // finish();
                 return true;
             } else if (id == R.id.nav_profile) {
-                // Option 1: Show message (temporary)
-                Toast.makeText(UserExploreActivity.this, "Profile feature coming soon!", Toast.LENGTH_SHORT).show();
-
-                // Option 2: If you have a profile activity, redirect there
-                // startActivity(new Intent(UserExploreActivity.this, ProfileActivity.class));
-                // overridePendingTransition(0, 0);
-                // finish();
+                // Navigate to UserProfileActivity
+                startActivity(new Intent(UserExploreActivity.this, UserProfileActivity.class));
+                overridePendingTransition(0, 0);
+                finish();
                 return true;
             }
             return false;
