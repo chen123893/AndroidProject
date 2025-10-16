@@ -81,8 +81,9 @@ public class UserExploreActivity extends AppCompatActivity {
             if (id == R.id.nav_explore) {
                 return true;
             } else if (id == R.id.nav_timetable) {
-                Toast.makeText(UserExploreActivity.this, "My Events feature coming soon!", Toast.LENGTH_SHORT).show();
-                return true;
+                startActivity(new Intent(UserExploreActivity.this, UserTimetableActivity.class));
+                overridePendingTransition(0, 0);
+                finish();
             } else if (id == R.id.nav_profile) {
                 // Navigate to UserProfileActivity
                 startActivity(new Intent(UserExploreActivity.this, UserProfileActivity.class));

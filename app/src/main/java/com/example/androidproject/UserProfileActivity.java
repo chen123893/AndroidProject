@@ -235,7 +235,7 @@ public class UserProfileActivity extends AppCompatActivity {
     }
 
     private void redirectToLogin() {
-        // Navigate to Login Activity and clear back stack
+        // Navigate to Login Activity
         Intent intent = new Intent(UserProfileActivity.this, LoginActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         startActivity(intent);
@@ -361,8 +361,9 @@ public class UserProfileActivity extends AppCompatActivity {
                 finish();
                 return true;
             } else if (id == R.id.nav_timetable) {
-                Toast.makeText(UserProfileActivity.this, "My Events feature coming soon!", Toast.LENGTH_SHORT).show();
-                return true;
+                startActivity(new Intent(UserProfileActivity.this, UserTimetableActivity.class));
+                overridePendingTransition(0, 0);
+                finish();
             }
             return false;
         });
@@ -371,7 +372,6 @@ public class UserProfileActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        // Update bottom navigation selection
         BottomNavigationView bottomNav = findViewById(R.id.bottom_navigation);
         bottomNav.setSelectedItemId(R.id.nav_profile);
     }
