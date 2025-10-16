@@ -30,7 +30,7 @@ public class AdminProfileActivity extends AppCompatActivity {
     private TextInputEditText etPassword;
     private EditText etName, etEmail, etPhone;
     private RadioButton radioMale, radioFemale;
-    private ImageView profilePic;
+    private ImageView profilePic, btnLogout; // Changed to ImageView
     private Button btnEditPic, btnUpdate;
 
     private Uri imageUri;
@@ -61,6 +61,7 @@ public class AdminProfileActivity extends AppCompatActivity {
         profilePic = findViewById(R.id.profilePic);
         btnEditPic = findViewById(R.id.btnEditPic);
         btnUpdate = findViewById(R.id.btnUpdate);
+        btnLogout = findViewById(R.id.btnLogout); // Now an ImageView
 
         progressDialog = new ProgressDialog(this);
         progressDialog.setMessage("Saving profile...");
@@ -83,6 +84,7 @@ public class AdminProfileActivity extends AppCompatActivity {
             if (isEditing) updateProfile();
             else Toast.makeText(this, "Click Edit first to modify profile.", Toast.LENGTH_SHORT).show();
         });
+        btnLogout.setOnClickListener(v -> logoutUser()); // Logout listener remains the same
 
         BottomNavigationView bottomNav = findViewById(R.id.bottom_navigation);
         bottomNav.setSelectedItemId(R.id.nav_profile);
@@ -106,6 +108,47 @@ public class AdminProfileActivity extends AppCompatActivity {
         });
 
         requestStoragePermission();
+    }
+
+    private void logoutUser() {
+        // Show confirmation dialog
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("Logout")
+                .setMessage("Are you sure you want to logout?")
+                .setPositiveButton("Yes", (dialog, which) -> {
+                    performFirebaseLogout();
+                })
+                .setNegativeButton("No", null)
+                .show();
+    }
+
+    private void performFirebaseLogout() {
+        try {
+            // Show loading indicator
+            Toast.makeText(this, "Logging out...", Toast.LENGTH_SHORT).show();
+
+            // Built-in Firebase Authentication logout function
+            auth.signOut();
+
+            // Verify logout was successful
+            if (auth.getCurrentUser() == null) {
+                redirectToLogin();
+            } else {
+                Toast.makeText(this, "Logout failed. Please try again.", Toast.LENGTH_SHORT).show();
+            }
+        } catch (Exception e) {
+            Toast.makeText(this, "Error during logout: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void redirectToLogin() {
+        // Navigate to Login Activity and clear back stack
+        Intent intent = new Intent(AdminProfileActivity.this, LoginActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        startActivity(intent);
+        finish();
+
+        Toast.makeText(this, "Logged out successfully", Toast.LENGTH_SHORT).show();
     }
 
     private void loadAdminProfile(String uid) {
@@ -256,5 +299,13 @@ public class AdminProfileActivity extends AppCompatActivity {
                 requestPermissions(new String[]{android.Manifest.permission.READ_EXTERNAL_STORAGE}, 101);
             }
         }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Update bottom navigation selection
+        BottomNavigationView bottomNav = findViewById(R.id.bottom_navigation);
+        bottomNav.setSelectedItemId(R.id.nav_profile);
     }
 }

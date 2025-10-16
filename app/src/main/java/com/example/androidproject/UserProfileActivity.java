@@ -5,6 +5,7 @@ import android.os.Bundle;
 import android.util.Log;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.Toast;
@@ -26,6 +27,7 @@ public class UserProfileActivity extends AppCompatActivity {
     private RadioGroup radioGroupGender;
     private RadioButton radioMale, radioFemale;
     private Button btnUpdate, btnEditPic;
+    private ImageView btnLogout; // Changed from Button to ImageView
 
     private FirebaseAuth mAuth;
     private FirebaseFirestore db;
@@ -40,7 +42,15 @@ public class UserProfileActivity extends AppCompatActivity {
         // Initialize Firebase
         mAuth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
-        currentUserId = mAuth.getCurrentUser().getUid();
+        FirebaseUser currentUser = mAuth.getCurrentUser();
+
+        if (currentUser == null) {
+            // User is not logged in, redirect to login
+            redirectToLogin();
+            return;
+        }
+
+        currentUserId = currentUser.getUid();
 
         // Initialize views
         initializeViews();
@@ -66,6 +76,7 @@ public class UserProfileActivity extends AppCompatActivity {
         radioFemale = findViewById(R.id.radioFemale);
         btnUpdate = findViewById(R.id.btnUpdate);
         btnEditPic = findViewById(R.id.btnEditPic);
+        btnLogout = findViewById(R.id.btnLogout); // This now correctly finds the ImageView
 
         // Initially disable all fields except password
         setFieldsEnabled(false);
@@ -187,8 +198,50 @@ public class UserProfileActivity extends AppCompatActivity {
 
     private void setupButtonListeners() {
         btnEditPic.setOnClickListener(v -> toggleEditMode());
-
         btnUpdate.setOnClickListener(v -> updateProfile());
+        btnLogout.setOnClickListener(v -> logoutUser());
+    }
+
+    private void logoutUser() {
+        // Show confirmation dialog
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("Logout")
+                .setMessage("Are you sure you want to logout?")
+                .setPositiveButton("Yes", (dialog, which) -> {
+                    performFirebaseLogout();
+                })
+                .setNegativeButton("No", null)
+                .show();
+    }
+
+    private void performFirebaseLogout() {
+        try {
+            // Show loading indicator
+            Toast.makeText(this, "Logging out...", Toast.LENGTH_SHORT).show();
+
+            // Built-in Firebase Authentication logout function
+            mAuth.signOut();
+
+            // Verify logout was successful
+            if (mAuth.getCurrentUser() == null) {
+                redirectToLogin();
+            } else {
+                Toast.makeText(this, "Logout failed. Please try again.", Toast.LENGTH_SHORT).show();
+            }
+        } catch (Exception e) {
+            Log.e("UserProfile", "Logout error: " + e.getMessage());
+            Toast.makeText(this, "Error during logout: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void redirectToLogin() {
+        // Navigate to Login Activity and clear back stack
+        Intent intent = new Intent(UserProfileActivity.this, LoginActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        startActivity(intent);
+        finish();
+
+        Toast.makeText(this, "Logged out successfully", Toast.LENGTH_SHORT).show();
     }
 
     private void toggleEditMode() {

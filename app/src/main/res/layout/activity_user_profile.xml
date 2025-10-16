@@ -13,16 +13,29 @@
         android:layout_width="match_parent"
         android:layout_height="100dp"
         android:background="#4A3AFF"
-        android:gravity="center"
-        android:orientation="vertical">
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="20dp">
 
         <TextView
-            android:layout_width="wrap_content"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_weight="1"
             android:text="Profile"
             android:textColor="@android:color/white"
             android:textSize="22sp"
-            android:textStyle="bold" />
+            android:textStyle="bold"
+            android:gravity="center" />
+
+        <!-- Logout Icon -->
+        <ImageView
+            android:id="@+id/btnLogout"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/ic_logout"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:padding="8dp"
+            android:contentDescription="Logout" />
     </LinearLayout>
 
     <!-- Scrollable Profile Content -->
@@ -207,6 +220,8 @@
                 android:backgroundTint="#000000"
                 android:padding="12dp"
                 android:enabled="false" />
+
+
 
         </LinearLayout>
     </ScrollView>
