@@ -37,11 +37,9 @@ public class CreateEventActivity extends AppCompatActivity {
         setContentView(R.layout.activity_create_event);
 
         db = FirebaseFirestore.getInstance();
-
-        // Initialize calendars and formatter
         startCalendar = Calendar.getInstance();
         endCalendar = Calendar.getInstance();
-        endCalendar.add(Calendar.HOUR, 2); // Default end time: 2 hours from now
+        endCalendar.add(Calendar.HOUR, 2);
         dateTimeFormatter = new SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault());
 
         eventName = findViewById(R.id.eventName);
@@ -53,7 +51,6 @@ public class CreateEventActivity extends AppCompatActivity {
         genderGroup = findViewById(R.id.genderGroup);
         createBtn = findViewById(R.id.createBtn);
 
-        // Set up date-time pickers
         setupDateTimePickers();
 
         createBtn.setOnClickListener(v -> createEvent());
@@ -61,7 +58,6 @@ public class CreateEventActivity extends AppCompatActivity {
         // Bottom navigation setup
         BottomNavigationView bottomNav = findViewById(R.id.bottom_navigation);
         bottomNav.setSelectedItemId(R.id.nav_create_event);
-
         bottomNav.setOnItemSelectedListener(item -> {
             int id = item.getItemId();
             if (id == R.id.nav_my_events) {
@@ -82,30 +78,21 @@ public class CreateEventActivity extends AppCompatActivity {
     }
 
     private void setupDateTimePickers() {
-        // Start Date-Time Picker
         startDateTime.setFocusable(false);
-        startDateTime.setClickable(true);
         startDateTime.setOnClickListener(v -> showDateTimePicker(startDateTime, startCalendar, "Start Date & Time"));
 
-        // End Date-Time Picker
         endDateTime.setFocusable(false);
-        endDateTime.setClickable(true);
         endDateTime.setOnClickListener(v -> showDateTimePicker(endDateTime, endCalendar, "End Date & Time"));
-
-        // REMOVED: Don't set initial values, let hint text show instead
     }
 
-    private void showDateTimePicker(EditText dateTimeField, Calendar calendar, String title) {
-        // First show date picker
+    private void showDateTimePicker(EditText field, Calendar calendar, String title) {
         DatePickerDialog datePicker = new DatePickerDialog(
                 this,
-                (view, year, month, dayOfMonth) -> {
+                (view, year, month, day) -> {
                     calendar.set(Calendar.YEAR, year);
                     calendar.set(Calendar.MONTH, month);
-                    calendar.set(Calendar.DAY_OF_MONTH, dayOfMonth);
-
-                    // After date is selected, show time picker
-                    showTimePicker(dateTimeField, calendar, title);
+                    calendar.set(Calendar.DAY_OF_MONTH, day);
+                    showTimePicker(field, calendar, title);
                 },
                 calendar.get(Calendar.YEAR),
                 calendar.get(Calendar.MONTH),
@@ -117,26 +104,24 @@ public class CreateEventActivity extends AppCompatActivity {
         datePicker.show();
     }
 
-    private void showTimePicker(EditText dateTimeField, Calendar calendar, String title) {
+    private void showTimePicker(EditText field, Calendar calendar, String title) {
         TimePickerDialog timePicker = new TimePickerDialog(
                 this,
-                (view, hourOfDay, minute) -> {
-                    calendar.set(Calendar.HOUR_OF_DAY, hourOfDay);
+                (view, hour, minute) -> {
+                    calendar.set(Calendar.HOUR_OF_DAY, hour);
                     calendar.set(Calendar.MINUTE, minute);
-                    dateTimeField.setText(dateTimeFormatter.format(calendar.getTime()));
+                    field.setText(dateTimeFormatter.format(calendar.getTime()));
 
-                    // Validate that end date-time is after start date-time
-                    if (dateTimeField == endDateTime && !endCalendar.after(startCalendar)) {
+                    if (field == endDateTime && !endCalendar.after(startCalendar)) {
                         Toast.makeText(this, "End date-time must be after start date-time", Toast.LENGTH_SHORT).show();
-                        endDateTime.setText(""); // Clear the invalid selection
+                        endDateTime.setText("");
                         endCalendar.setTime(startCalendar.getTime());
                     }
                 },
                 calendar.get(Calendar.HOUR_OF_DAY),
                 calendar.get(Calendar.MINUTE),
-                false // 12-hour format
+                false
         );
-
         timePicker.setTitle("Select " + title + " - Time");
         timePicker.show();
     }
@@ -177,50 +162,47 @@ public class CreateEventActivity extends AppCompatActivity {
         event.put("genderSpec", genderCode);
         event.put("currentAttendees", 0);
 
-        // Get the admin’s Firestore record
-        // inside createEvent()
         String adminUid = FirebaseAuth.getInstance().getCurrentUser().getUid();
 
+        // ✅ Fetch adminID (like A001) using admin UID
         db.collection("admin")
                 .document(adminUid)
                 .get()
                 .addOnSuccessListener(doc -> {
                     if (doc.exists()) {
-                        String adminID = doc.getString("adminID"); // ✅ use the same stored Axxxx
+                        String adminID = doc.getString("adminID");
                         if (adminID != null) {
                             event.put("adminID", adminID);
-                        } else {
-                            Toast.makeText(this, "Admin ID not found. Please re-login.", Toast.LENGTH_SHORT).show();
-                            return;
-                        }
-                    }
 
-                    db.collection("events")
-                            .document(eventID)
-                            .set(event)
-                            .addOnSuccessListener(unused -> {
-                                Toast.makeText(this, "Event created successfully!", Toast.LENGTH_SHORT).show();
-                                clearFields();
-                            })
-                            .addOnFailureListener(e ->
-                                    Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                            db.collection("events")
+                                    .document(eventID)
+                                    .set(event)
+                                    .addOnSuccessListener(unused -> {
+                                        Toast.makeText(this, "Event created successfully!", Toast.LENGTH_SHORT).show();
+                                        clearFields();
+                                    })
+                                    .addOnFailureListener(e ->
+                                            Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                        } else {
+                            Toast.makeText(this, "Admin ID missing in Firestore record.", Toast.LENGTH_SHORT).show();
+                        }
+                    } else {
+                        Toast.makeText(this, "Admin record not found.", Toast.LENGTH_SHORT).show();
+                    }
                 })
                 .addOnFailureListener(e ->
-                        Toast.makeText(this, "Failed to fetch admin ID: " + e.getMessage(), Toast.LENGTH_SHORT).show());
-
+                        Toast.makeText(this, "Failed to fetch adminID: " + e.getMessage(), Toast.LENGTH_SHORT).show());
     }
-
 
     private void clearFields() {
         eventName.setText("");
         venue.setText("");
-        startDateTime.setText(""); // Clear the text to show hint again
-        endDateTime.setText("");   // Clear the text to show hint again
+        startDateTime.setText("");
+        endDateTime.setText("");
         pax.setText("");
         description.setText("");
         genderGroup.clearCheck();
 
-        // Reset calendars but don't display the values
         startCalendar = Calendar.getInstance();
         endCalendar = Calendar.getInstance();
         endCalendar.add(Calendar.HOUR, 2);

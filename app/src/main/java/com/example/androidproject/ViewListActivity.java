@@ -13,6 +13,7 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.bumptech.glide.Glide;
+import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 
@@ -30,7 +31,6 @@ public class ViewListActivity extends AppCompatActivity {
         db = FirebaseFirestore.getInstance();
         attendeesContainer = findViewById(R.id.attendees_container);
 
-        // ✅ Get event ID from intent
         Intent intent = getIntent();
         if (intent != null) {
             eventID = intent.getStringExtra("eventID");
@@ -47,6 +47,8 @@ public class ViewListActivity extends AppCompatActivity {
     }
 
     private void loadAttendees() {
+        Log.d("ViewListActivity", "Loading attendees for eventID: " + eventID);
+
         db.collection("attendance")
                 .whereEqualTo("eventID", eventID)
                 .get()
@@ -54,58 +56,81 @@ public class ViewListActivity extends AppCompatActivity {
                     attendeesContainer.removeAllViews();
 
                     if (snapshot.isEmpty()) {
+                        Log.d("ViewListActivity", "No attendance records found for eventID: " + eventID);
                         TextView empty = new TextView(this);
                         empty.setText("No attendees yet.");
+                        empty.setTextColor(getResources().getColor(android.R.color.black));
+                        empty.setTextSize(16f);
                         attendeesContainer.addView(empty);
                         return;
                     }
 
-                    for (QueryDocumentSnapshot doc : snapshot) {
-                        String attendanceDocID = doc.getId();
-                        String userID = doc.getString("userID");
-                        if (userID == null) continue;
+                    Log.d("ViewListActivity", "Found " + snapshot.size() + " attendance records");
 
-                        db.collection("users")
+                    // Loop through all attendance documents
+                    for (QueryDocumentSnapshot attendanceDoc : snapshot) {
+                        String attendanceDocID = attendanceDoc.getId();
+                        String userID = attendanceDoc.getString("userID");
+
+                        Log.d("ViewListActivity", "Processing attendance: " + attendanceDocID + ", userID: " + userID);
+
+                        if (userID == null || userID.isEmpty()) {
+                            Log.w("ViewListActivity", "Attendance doc missing userID: " + attendanceDocID);
+                            continue;
+                        }
+
+                        // Find the matching user by userID
+                        db.collection("user")
                                 .whereEqualTo("userID", userID)
                                 .get()
                                 .addOnSuccessListener(userSnapshot -> {
                                     if (!userSnapshot.isEmpty()) {
-                                        for (QueryDocumentSnapshot userDoc : userSnapshot) {
-                                            View attendeeCard = getLayoutInflater().inflate(R.layout.item_attendee_card, attendeesContainer, false);
-
-                                            ImageView profilePic = attendeeCard.findViewById(R.id.profile_pic);
-                                            TextView usernameView = attendeeCard.findViewById(R.id.username);
-                                            TextView emailView = attendeeCard.findViewById(R.id.email);
-                                            TextView genderView = attendeeCard.findViewById(R.id.gender);
-                                            ImageButton removeBtn = attendeeCard.findViewById(R.id.remove_button);
-
-                                            String name = userDoc.getString("name");
-                                            String email = userDoc.getString("email");
-                                            String profileUrl = userDoc.getString("profilePic");
-                                            Long gender = userDoc.getLong("gender");
-
-                                            usernameView.setText("Username: " + (name != null ? name : userID));
-                                            emailView.setText("Email: " + (email != null ? email : "N/A"));
-                                            genderView.setText("Gender: " + ((gender != null && gender == 1) ? "Male" : "Female"));
-
-                                            if (profileUrl != null && !profileUrl.isEmpty()) {
-                                                Glide.with(this).load(profileUrl).into(profilePic);
-                                            } else {
-                                                profilePic.setImageResource(R.drawable.tofu); // fallback image
-                                            }
-
-                                            removeBtn.setOnClickListener(v -> removeAttendee(attendanceDocID, attendeeCard));
-
-                                            attendeesContainer.addView(attendeeCard);
+                                        for (DocumentSnapshot userDoc : userSnapshot) {
+                                            addAttendeeCard(userDoc, attendanceDocID);
+                                            Log.d("ViewListActivity", "Added attendee card for userID: " + userID);
                                         }
+                                    } else {
+                                        Log.w("ViewListActivity", "No user found with userID: " + userID);
                                     }
                                 })
                                 .addOnFailureListener(e ->
-                                        Toast.makeText(this, "Failed to load user info: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                                        Log.e("ViewListActivity", "Error loading user with userID: " + userID, e));
                     }
                 })
-                .addOnFailureListener(e ->
-                        Toast.makeText(this, "Failed to load attendees: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                .addOnFailureListener(e -> {
+                    Log.e("ViewListActivity", "Failed to load attendees", e);
+                    Toast.makeText(this, "Failed to load attendees: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                });
+    }
+
+    private void addAttendeeCard(DocumentSnapshot userDoc, String attendanceDocID) {
+        View attendeeCard = getLayoutInflater().inflate(R.layout.item_attendee_card, attendeesContainer, false);
+
+        ImageView profilePic = attendeeCard.findViewById(R.id.profile_pic);
+        TextView usernameView = attendeeCard.findViewById(R.id.username);
+        TextView emailView = attendeeCard.findViewById(R.id.email);
+        ImageButton removeBtn = attendeeCard.findViewById(R.id.remove_button);
+
+        // Get fields safely
+        String name = userDoc.getString("name");
+        String email = userDoc.getString("email");
+        String phone = userDoc.getString("phoneNumber");
+        String desc = userDoc.getString("description");
+        String profileUrl = userDoc.getString("profilePic");
+
+        // Populate fields
+        usernameView.setText("Name: " + (name != null ? name : "Unknown"));
+        emailView.setText("Email: " + (email != null ? email : "N/A"));
+
+        if (profileUrl != null && !profileUrl.isEmpty()) {
+            Glide.with(this).load(profileUrl).into(profilePic);
+        } else {
+            profilePic.setImageResource(R.drawable.tofu);
+        }
+
+        removeBtn.setOnClickListener(v -> removeAttendee(attendanceDocID, attendeeCard));
+
+        attendeesContainer.addView(attendeeCard);
     }
 
     private void removeAttendee(String attendanceDocID, View cardView) {
@@ -113,7 +138,7 @@ public class ViewListActivity extends AppCompatActivity {
                 .delete()
                 .addOnSuccessListener(unused -> {
                     attendeesContainer.removeView(cardView);
-                    Toast.makeText(this, "Attendee removed", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "Attendee removed successfully", Toast.LENGTH_SHORT).show();
                 })
                 .addOnFailureListener(e ->
                         Toast.makeText(this, "Failed to remove attendee: " + e.getMessage(), Toast.LENGTH_SHORT).show());
