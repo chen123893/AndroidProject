@@ -13,6 +13,7 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.bumptech.glide.Glide;
+import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
@@ -22,11 +23,14 @@ public class ViewListActivity extends AppCompatActivity {
     private FirebaseFirestore db;
     private LinearLayout attendeesContainer;
     private String eventID;
+    private ImageButton backBtn;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_view_list);
+
+        backBtn = findViewById(R.id.backButton);
 
         db = FirebaseFirestore.getInstance();
         attendeesContainer = findViewById(R.id.attendees_container);
@@ -44,6 +48,35 @@ public class ViewListActivity extends AppCompatActivity {
         }
 
         loadAttendees();
+
+        // Bottom Navigation setup
+        BottomNavigationView bottomNav = findViewById(R.id.bottom_navigation);
+        bottomNav.setSelectedItemId(R.id.nav_my_events);
+        bottomNav.setOnItemSelectedListener(item -> {
+            int id = item.getItemId();
+            if (id == R.id.nav_my_events) {
+                startActivity(new Intent(ViewListActivity.this, MyEventsActivity.class));
+                overridePendingTransition(0, 0);
+                finish();
+                return true;
+            }else if (id == R.id.nav_create_event) {
+                startActivity(new Intent(ViewListActivity.this, CreateEventActivity.class));
+                overridePendingTransition(0, 0);
+                finish();
+                return true;
+            } else if (id == R.id.nav_profile) {
+                startActivity(new Intent(ViewListActivity.this, AdminProfileActivity.class));
+                overridePendingTransition(0, 0);
+                finish();
+                return true;
+            }
+            return false;
+        });
+
+        backBtn.setOnClickListener(v -> {
+            startActivity(new Intent(ViewListActivity.this, MyEventsActivity.class));
+            finish();
+        });
     }
 
     private void loadAttendees() {

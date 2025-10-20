@@ -9,22 +9,24 @@
     <!-- Header -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="100dp"
+        android:layout_height="90dp"
         android:background="#4A3AFF"
-        android:gravity="center"
-        android:orientation="vertical">
+        android:gravity="center_vertical"
+        android:padding="16dp"
+        android:orientation="horizontal">
 
         <ImageButton
             android:id="@+id/backButton"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@drawable/back_button"/>
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:src="@drawable/white_back_button"
+            android:background="?attr/selectableItemBackgroundBorderless" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Edit Event"
+            android:layout_marginStart="8dp"
+            android:text="                  Edit Event"
             android:textColor="@android:color/white"
             android:textSize="22sp"
             android:textStyle="bold" />
@@ -147,15 +149,13 @@
 
             <Button
                 android:id="@+id/createBtn"
-                android:text="Save Changes"
+                android:text="Update Event"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="20dp"
                 android:backgroundTint="#000000"
                 android:textColor="@android:color/white"
                 android:padding="12dp" />
-
-
         </LinearLayout>
     </ScrollView>
 
@@ -168,5 +168,4 @@
         app:itemIconTint="#000000"
         app:itemTextColor="#000000"
         app:menu="@menu/bottom_nav_menu" />
-
 </LinearLayout>
