@@ -2,23 +2,35 @@ package com.example.androidproject;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.DisplayMetrics;
 import android.util.Log;
+import android.view.Gravity;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.Window;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.GridLayout;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
+import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.bumptech.glide.Glide;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class UserProfileActivity extends AppCompatActivity {
@@ -26,13 +38,31 @@ public class UserProfileActivity extends AppCompatActivity {
     private EditText etName, etEmail, etPhone, etDescription, etPassword;
     private RadioGroup radioGroupGender;
     private RadioButton radioMale, radioFemale;
-    private Button btnUpdate, btnEditPic;
-    private ImageView btnLogout; // Changed from Button to ImageView
+    private Button btnUpdate, btnEditPic, btnEditProfile, btnCancel;
+    private ImageView btnLogout, profilePic;
 
     private FirebaseAuth mAuth;
     private FirebaseFirestore db;
     private String currentUserId;
-    private String currentCollection; // Track whether user is in "user" or "admin" collection
+    private String currentCollection;
+
+    private boolean isEditMode = false;
+    private Map<String, Object> originalData = new HashMap<>();
+
+    // Local profile images
+    private final List<Integer> LOCAL_PROFILE_IMAGES = Arrays.asList(
+            R.drawable.tofu,
+            R.drawable.profile1,
+            R.drawable.profile2,
+            R.drawable.profile3
+    );
+
+    private final List<String> IMAGE_NAMES = Arrays.asList(
+            "Default",
+            "Professional",
+            "Casual",
+            "Creative"
+    );
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -45,7 +75,6 @@ public class UserProfileActivity extends AppCompatActivity {
         FirebaseUser currentUser = mAuth.getCurrentUser();
 
         if (currentUser == null) {
-            // User is not logged in, redirect to login
             redirectToLogin();
             return;
         }
@@ -76,21 +105,46 @@ public class UserProfileActivity extends AppCompatActivity {
         radioFemale = findViewById(R.id.radioFemale);
         btnUpdate = findViewById(R.id.btnUpdate);
         btnEditPic = findViewById(R.id.btnEditPic);
-        btnLogout = findViewById(R.id.btnLogout); // This now correctly finds the ImageView
+        btnEditProfile = findViewById(R.id.btnEditProfile);
+        btnCancel = findViewById(R.id.btnCancel);
+        btnLogout = findViewById(R.id.btnLogout);
+        profilePic = findViewById(R.id.profilePic);
 
-        // Initially disable all fields except password
-        setFieldsEnabled(false);
-        etPassword.setEnabled(true); // Allow password changes
+        // Make profile image clickable
+        profilePic.setClickable(true);
+        profilePic.setFocusable(true);
+
+        // Initially disable all fields except profile image functionality
+        setEditMode(false);
+
+        // Profile image button is always enabled
+        btnEditPic.setEnabled(true);
     }
 
-    private void setFieldsEnabled(boolean enabled) {
+    private void setEditMode(boolean enabled) {
+        isEditMode = enabled;
+
         etName.setEnabled(enabled);
-        etEmail.setEnabled(enabled);
         etPhone.setEnabled(enabled);
         etDescription.setEnabled(enabled);
+        radioGroupGender.setEnabled(enabled);
         radioMale.setEnabled(enabled);
         radioFemale.setEnabled(enabled);
+        etPassword.setEnabled(enabled);
         btnUpdate.setEnabled(enabled);
+
+        // Show/hide buttons based on mode
+        if (enabled) {
+            btnEditProfile.setVisibility(Button.GONE);
+            btnCancel.setVisibility(Button.VISIBLE);
+            btnUpdate.setVisibility(Button.VISIBLE);
+        } else {
+            btnEditProfile.setVisibility(Button.VISIBLE);
+            btnCancel.setVisibility(Button.GONE);
+            btnUpdate.setVisibility(Button.GONE);
+            // Clear password field when exiting edit mode
+            etPassword.setText("");
+        }
     }
 
     private void loadUserData() {
@@ -104,7 +158,6 @@ public class UserProfileActivity extends AppCompatActivity {
                         currentCollection = "user";
                         populateUserData(documentSnapshot);
                     } else {
-                        // If not in user collection, try admin collection
                         db.collection("admin").document(currentUserId).get()
                                 .addOnSuccessListener(adminSnapshot -> {
                                     if (adminSnapshot.exists()) {
@@ -131,24 +184,34 @@ public class UserProfileActivity extends AppCompatActivity {
 
     private void populateUserData(DocumentSnapshot document) {
         try {
-            // Get user data
             String name = document.getString("name");
             String email = document.getString("email");
             String phone = document.getString("phoneNumber");
             String description = document.getString("description");
+            String profilePicRef = document.getString("profilePic");
             Long gender = document.getLong("gender");
 
-            // Populate fields
             if (name != null) etName.setText(name);
             if (email != null) etEmail.setText(email);
             if (phone != null) etPhone.setText(phone);
             if (description != null) etDescription.setText(description);
 
+            // Store original data for cancel functionality
+            originalData.put("name", name != null ? name : "");
+            originalData.put("email", email != null ? email : "");
+            originalData.put("phone", phone != null ? phone : "");
+            originalData.put("description", description != null ? description : "");
+            originalData.put("gender", gender != null ? gender : 1);
+            originalData.put("profilePic", profilePicRef != null ? profilePicRef : "");
+
+            // Load profile picture from local resources
+            loadProfileImage(profilePicRef);
+
             // Set gender
             if (gender != null) {
-                if (gender == 1) { // Male
+                if (gender == 1) {
                     radioMale.setChecked(true);
-                } else if (gender == 0) { // Female
+                } else if (gender == 0) {
                     radioFemale.setChecked(true);
                 }
             }
@@ -161,6 +224,25 @@ public class UserProfileActivity extends AppCompatActivity {
         }
     }
 
+    private void loadProfileImage(String profilePicRef) {
+        if (profilePicRef != null && !profilePicRef.isEmpty()) {
+            int imageResId = getImageResource(profilePicRef);
+            Glide.with(this)
+                    .load(imageResId)
+                    .placeholder(R.drawable.tofu)
+                    .error(R.drawable.tofu)
+                    .circleCrop()
+                    .into(profilePic);
+        } else {
+            profilePic.setImageResource(R.drawable.tofu);
+        }
+    }
+
+    private int getImageResource(String imageName) {
+        int index = IMAGE_NAMES.indexOf(imageName);
+        return index >= 0 ? LOCAL_PROFILE_IMAGES.get(index) : R.drawable.profile1;
+    }
+
     private void createDefaultProfile() {
         FirebaseUser currentUser = mAuth.getCurrentUser();
         if (currentUser == null) return;
@@ -170,15 +252,13 @@ public class UserProfileActivity extends AppCompatActivity {
         user.put("email", currentUser.getEmail());
         user.put("phoneNumber", "");
         user.put("description", "Tell us about yourself...");
-        user.put("gender", 1); // Default to male
-        user.put("profilePic", null);
+        user.put("gender", 1);
+        user.put("profilePic", "Default");
 
-        // Generate dynamic ID
         long timestamp = System.currentTimeMillis();
         String generatedID = "U" + timestamp;
         user.put("userID", generatedID);
 
-        // Default to user collection
         currentCollection = "user";
 
         db.collection(currentCollection)
@@ -187,7 +267,6 @@ public class UserProfileActivity extends AppCompatActivity {
                 .addOnSuccessListener(aVoid -> {
                     Log.d("UserProfile", "Default profile created successfully");
                     Toast.makeText(this, "Default profile created", Toast.LENGTH_SHORT).show();
-                    // Reload data to populate fields
                     loadUserData();
                 })
                 .addOnFailureListener(e -> {
@@ -197,14 +276,182 @@ public class UserProfileActivity extends AppCompatActivity {
     }
 
     private void setupButtonListeners() {
-        btnEditPic.setOnClickListener(v -> toggleEditMode());
+        // Profile picture click listener - ALWAYS enabled
+        profilePic.setOnClickListener(v -> openImageChooser());
+
+        // Edit picture button listener - ALWAYS enabled
+        btnEditPic.setOnClickListener(v -> openImageChooser());
+
+        // Edit profile button listener - for profile data only
+        btnEditProfile.setOnClickListener(v -> enableEditMode());
+
+        // Cancel button listener
+        btnCancel.setOnClickListener(v -> cancelEditMode());
+
         btnUpdate.setOnClickListener(v -> updateProfile());
         btnLogout.setOnClickListener(v -> logoutUser());
     }
 
+    private void enableEditMode() {
+        setEditMode(true);
+        Toast.makeText(this, "You can now edit your profile data", Toast.LENGTH_SHORT).show();
+    }
+
+    private void cancelEditMode() {
+        // Restore original data
+        etName.setText((String) originalData.get("name"));
+        etPhone.setText((String) originalData.get("phone"));
+        etDescription.setText((String) originalData.get("description"));
+
+        Long gender = (Long) originalData.get("gender");
+        if (gender != null) {
+            if (gender == 1) {
+                radioMale.setChecked(true);
+            } else if (gender == 0) {
+                radioFemale.setChecked(true);
+            }
+        }
+
+        // Restore original profile picture
+        String originalProfilePic = (String) originalData.get("profilePic");
+        loadProfileImage(originalProfilePic);
+
+        etPassword.setText("");
+        setEditMode(false);
+        Toast.makeText(this, "Changes cancelled", Toast.LENGTH_SHORT).show();
+    }
+
+    private void openImageChooser() {
+        showImageSelectionDialog();
+    }
+
+    private void showImageSelectionDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Choose Profile Picture");
+
+        // Create a GridLayout for the images
+        GridLayout gridLayout = new GridLayout(this);
+        gridLayout.setColumnCount(3); // Fixed 3 columns
+        gridLayout.setPadding(32, 32, 32, 32);
+
+        // Calculate the width for each item to fill the row properly
+        DisplayMetrics displayMetrics = new DisplayMetrics();
+        getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
+        int screenWidth = displayMetrics.widthPixels;
+        int itemWidth = (screenWidth - (32 * 4)) / 3; // 32dp padding on both sides + gaps
+
+        for (int i = 0; i < LOCAL_PROFILE_IMAGES.size(); i++) {
+            final int position = i;
+            final int imageResId = LOCAL_PROFILE_IMAGES.get(i);
+            final String imageName = IMAGE_NAMES.get(i);
+
+            // Create a container for each image item
+            LinearLayout container = new LinearLayout(this);
+            GridLayout.LayoutParams containerParams = new GridLayout.LayoutParams();
+            containerParams.width = itemWidth;
+            containerParams.height = ViewGroup.LayoutParams.WRAP_CONTENT;
+            containerParams.setMargins(8, 8, 8, 8);
+            container.setLayoutParams(containerParams);
+            container.setOrientation(LinearLayout.VERTICAL);
+            container.setGravity(Gravity.CENTER);
+            container.setPadding(16, 16, 16, 16);
+            container.setBackgroundResource(R.drawable.image_item_background);
+            container.setClickable(true);
+            container.setFocusable(true);
+
+            // Create image view
+            ImageView imageView = new ImageView(this);
+            LinearLayout.LayoutParams imageParams = new LinearLayout.LayoutParams(
+                    itemWidth - 64, // Account for container padding
+                    itemWidth - 64
+            );
+            imageView.setLayoutParams(imageParams);
+            imageView.setScaleType(ImageView.ScaleType.CENTER_CROP);
+
+            // Load image with Glide
+            Glide.with(this)
+                    .load(imageResId)
+                    .circleCrop()
+                    .into(imageView);
+
+            // Create text view for image name
+            TextView textView = new TextView(this);
+            LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+            );
+            textParams.setMargins(0, 12, 0, 0);
+            textView.setLayoutParams(textParams);
+            textView.setText(imageName);
+            textView.setTextSize(12);
+            textView.setGravity(Gravity.CENTER);
+            textView.setMaxWidth(itemWidth - 32);
+            textView.setSingleLine(true);
+
+            container.addView(imageView);
+            container.addView(textView);
+
+            // Set click listener
+            container.setOnClickListener(v -> {
+                // Update profile picture
+                Glide.with(UserProfileActivity.this)
+                        .load(imageResId)
+                        .circleCrop()
+                        .into(profilePic);
+
+                // Save to Firestore
+                saveSelectedImageToFirestore(imageName);
+
+                // Dismiss dialog
+                ((AlertDialog) v.getTag()).dismiss();
+
+                Toast.makeText(UserProfileActivity.this, "Profile image updated to: " + imageName, Toast.LENGTH_SHORT).show();
+            });
+
+            gridLayout.addView(container);
+        }
+
+        builder.setView(gridLayout);
+        builder.setNegativeButton("Cancel", null);
+
+        AlertDialog dialog = builder.create();
+
+        // Set dialog as tag for all clickable views
+        for (int i = 0; i < gridLayout.getChildCount(); i++) {
+            gridLayout.getChildAt(i).setTag(dialog);
+        }
+
+        dialog.show();
+
+        // Set dialog window size
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
+    }
+
+    private void saveSelectedImageToFirestore(String imageName) {
+        if (currentCollection == null) {
+            Toast.makeText(this, "Error: User collection not found", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        db.collection(currentCollection)
+                .document(currentUserId)
+                .update("profilePic", imageName)
+                .addOnSuccessListener(aVoid -> {
+                    Log.d("UserProfile", "Profile image reference saved: " + imageName);
+                    // Update original data
+                    originalData.put("profilePic", imageName);
+                })
+                .addOnFailureListener(e -> {
+                    Toast.makeText(this, "Failed to update profile image", Toast.LENGTH_SHORT).show();
+                    Log.e("UserProfile", "Failed to save image reference: " + e.getMessage());
+                });
+    }
+
     private void logoutUser() {
-        // Show confirmation dialog
-        new android.app.AlertDialog.Builder(this)
+        new AlertDialog.Builder(this)
                 .setTitle("Logout")
                 .setMessage("Are you sure you want to logout?")
                 .setPositiveButton("Yes", (dialog, which) -> {
@@ -216,13 +463,9 @@ public class UserProfileActivity extends AppCompatActivity {
 
     private void performFirebaseLogout() {
         try {
-            // Show loading indicator
             Toast.makeText(this, "Logging out...", Toast.LENGTH_SHORT).show();
-
-            // Built-in Firebase Authentication logout function
             mAuth.signOut();
 
-            // Verify logout was successful
             if (mAuth.getCurrentUser() == null) {
                 redirectToLogin();
             } else {
@@ -235,35 +478,14 @@ public class UserProfileActivity extends AppCompatActivity {
     }
 
     private void redirectToLogin() {
-        // Navigate to Login Activity
         Intent intent = new Intent(UserProfileActivity.this, LoginActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         startActivity(intent);
         finish();
-
         Toast.makeText(this, "Logged out successfully", Toast.LENGTH_SHORT).show();
     }
 
-    private void toggleEditMode() {
-        boolean currentlyEnabled = etName.isEnabled();
-
-        if (!currentlyEnabled) {
-            // Enter edit mode
-            setFieldsEnabled(true);
-            btnEditPic.setText("Cancel Edit");
-            Toast.makeText(this, "Edit mode enabled", Toast.LENGTH_SHORT).show();
-        } else {
-            // Cancel edit mode
-            setFieldsEnabled(false);
-            btnEditPic.setText("Edit Profile");
-            // Reload original data
-            loadUserData();
-            Toast.makeText(this, "Edit cancelled", Toast.LENGTH_SHORT).show();
-        }
-    }
-
     private void updateProfile() {
-        // Validate inputs
         String name = etName.getText().toString().trim();
         String phone = etPhone.getText().toString().trim();
         String description = etDescription.getText().toString().trim();
@@ -294,21 +516,24 @@ public class UserProfileActivity extends AppCompatActivity {
         }
         int genderValue = (selectedGenderId == R.id.radioMale) ? 1 : 0;
 
-        // Prepare update data
         Map<String, Object> updates = new HashMap<>();
         updates.put("name", name);
         updates.put("phoneNumber", phone);
         updates.put("description", description);
         updates.put("gender", genderValue);
 
-        // Update Firestore
         db.collection(currentCollection)
                 .document(currentUserId)
                 .update(updates)
                 .addOnSuccessListener(aVoid -> {
                     Log.d("UserProfile", "Profile updated successfully");
 
-                    // Update password if provided
+                    // Update original data
+                    originalData.put("name", name);
+                    originalData.put("phone", phone);
+                    originalData.put("description", description);
+                    originalData.put("gender", (long) genderValue);
+
                     if (!newPassword.isEmpty()) {
                         if (newPassword.length() < 6) {
                             etPassword.setError("Password must be at least 6 characters");
@@ -316,9 +541,7 @@ public class UserProfileActivity extends AppCompatActivity {
                         }
                         updatePassword(newPassword);
                     } else {
-                        // Success without password change
-                        setFieldsEnabled(false);
-                        btnEditPic.setText("Edit Profile");
+                        setEditMode(false);
                         Toast.makeText(this, "Profile updated successfully!", Toast.LENGTH_SHORT).show();
                     }
                 })
@@ -335,9 +558,8 @@ public class UserProfileActivity extends AppCompatActivity {
                     .addOnCompleteListener(task -> {
                         if (task.isSuccessful()) {
                             Log.d("UserProfile", "Password updated successfully");
-                            setFieldsEnabled(false);
-                            btnEditPic.setText("Edit Profile");
-                            etPassword.setText(""); // Clear password field
+                            setEditMode(false);
+                            etPassword.setText("");
                             Toast.makeText(this, "Profile and password updated successfully!", Toast.LENGTH_SHORT).show();
                         } else {
                             Log.e("UserProfile", "Failed to update password: " + task.getException().getMessage());
