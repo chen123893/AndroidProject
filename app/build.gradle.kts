@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     id("com.google.gms.google-services")
@@ -13,6 +15,20 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
+
+        val localProps = Properties()
+        val localPropsFile = rootProject.file("local.properties")
+        if (localPropsFile.exists()) {
+            localProps.load(localPropsFile.inputStream())
+        }
+
+        val openAiKey = localProps.getProperty("OPENAI_API_KEY") ?: ""
+
+        buildConfigField(
+            type = "String",
+            name = "OPENAI_API_KEY",
+            value = "\"$openAiKey\""
+        )
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -30,6 +46,10 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 }
 
@@ -49,12 +69,17 @@ dependencies {
     // 🔹 Firebase Core SDKs
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
-    implementation("com.google.firebase:firebase-storage") // ✅ Added
+    implementation("com.google.firebase:firebase-storage")
     implementation("com.google.firebase:firebase-analytics")
 
 
     // 🔹 Picasso for image loading
-    implementation("com.squareup.picasso:picasso:2.8") // ✅ Added
+    implementation("com.squareup.picasso:picasso:2.8")
+
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.9.3")
+
 
     // Testing libraries
     testImplementation(libs.junit)

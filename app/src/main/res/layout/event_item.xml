@@ -38,6 +38,17 @@
         android:textSize="14sp"
         android:layout_marginTop="4dp" />
 
+    <TextView
+        android:id="@+id/tv_ai_recommendation_badge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="★ Recommended"
+        android:textColor="#FFD700"
+        android:textStyle="bold"
+        android:visibility="gone"
+        android:layout_marginTop="4dp"/>
+
+
     <Button
         android:id="@+id/btn_join"
         android:text="Join"

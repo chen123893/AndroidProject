@@ -1,5 +1,7 @@
 package com.example.androidproject;
 
+
+import android.app.ProgressDialog;
 import android.content.Intent;
 import android.os.Bundle;
 import android.text.TextUtils;
@@ -11,6 +13,9 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.app.AlertDialog;
+import android.view.LayoutInflater;
+import android.widget.ProgressBar;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -18,27 +23,32 @@ import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.example.androidproject.ai.AIRecommendationManager;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.DocumentReference;
-import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class UserExploreActivity extends AppCompatActivity {
 
     private EditText searchInput;
-    private Button btnSearch;
+    private Button btnSearch, btnAIRecommendations;
     private RecyclerView recyclerView;
     private FirebaseFirestore db;
     private FirebaseAuth mAuth;
     private ArrayList<Event> eventList;
     private EventAdapter adapter;
     private int currentUserGender = -1; // -1 = not loaded, 0 = female, 1 = male
+    private String userDescription = "";
+    private AIRecommendationManager aiRecommendationManager;
+    private boolean showingAIRecommendations = false;
+    private ProgressDialog progressDialog;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -51,9 +61,13 @@ public class UserExploreActivity extends AppCompatActivity {
         db = FirebaseFirestore.getInstance();
         mAuth = FirebaseAuth.getInstance();
 
+        // Initialize AI Recommendation Manager
+        aiRecommendationManager = new AIRecommendationManager(this);
+
         // Initialize views
         searchInput = findViewById(R.id.search_input);
         btnSearch = findViewById(R.id.btn_search);
+        btnAIRecommendations = findViewById(R.id.btn_ai_recommendations);
         recyclerView = findViewById(R.id.recycler_events);
 
         // Setup RecyclerView
@@ -65,12 +79,64 @@ public class UserExploreActivity extends AppCompatActivity {
         // Setup bottom navigation
         setupBottomNavigation();
 
-        // Load current user's gender first, then load events
-        loadCurrentUserGender();
+        // Load current user's gender and description first, then load events
+        loadCurrentUserProfile();
 
         // Search button listener
         btnSearch.setOnClickListener(v -> searchEvents());
+
+        // AI Recommendations button listener
+        btnAIRecommendations.setOnClickListener(v -> {
+            if (showingAIRecommendations) {
+                // If already showing AI recommendations, switch back to all events
+                loadAllEvents();
+                btnAIRecommendations.setText("✨ Get AI Recommendations");
+                btnAIRecommendations.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.colorPrimary));
+                showingAIRecommendations = false;
+                Toast.makeText(this, "Showing all events", Toast.LENGTH_SHORT).show();
+            } else {
+                // Get AI recommendations
+                getAIRecommendations();
+            }
+        });
     }
+
+    private void toggleAIRecommendations() {
+        if (showingAIRecommendations) {
+            loadAllEvents();
+            btnAIRecommendations.setText("Get AI Recommendations");
+            btnAIRecommendations.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.colorPrimary));
+            showingAIRecommendations = false;
+            Toast.makeText(this, "Showing all events", Toast.LENGTH_SHORT).show();
+        } else {
+            getAIRecommendations();
+        }
+    }
+
+    private AlertDialog loadingDialog;
+
+    private void showLoading(String message) {
+        if (loadingDialog != null && loadingDialog.isShowing()) return;
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        View view = LayoutInflater.from(this).inflate(android.R.layout.simple_list_item_1, null);
+        ProgressBar progressBar = new ProgressBar(this);
+        progressBar.setIndeterminate(true);
+
+        builder.setTitle(message);
+        builder.setView(progressBar);
+        builder.setCancelable(false);
+
+        loadingDialog = builder.create();
+        loadingDialog.show();
+    }
+
+    private void hideLoading() {
+        if (loadingDialog != null && loadingDialog.isShowing()) {
+            loadingDialog.dismiss();
+        }
+    }
+
 
     private void setupBottomNavigation() {
         BottomNavigationView bottomNav = findViewById(R.id.bottom_navigation);
@@ -85,7 +151,6 @@ public class UserExploreActivity extends AppCompatActivity {
                 overridePendingTransition(0, 0);
                 finish();
             } else if (id == R.id.nav_profile) {
-                // Navigate to UserProfileActivity
                 startActivity(new Intent(UserExploreActivity.this, UserProfileActivity.class));
                 overridePendingTransition(0, 0);
                 finish();
@@ -95,17 +160,35 @@ public class UserExploreActivity extends AppCompatActivity {
         });
     }
 
-    private void loadCurrentUserGender() {
+    private void loadCurrentUserProfile() {
         String userId = mAuth.getCurrentUser().getUid();
-        Log.d("UserExplore", "Loading gender for user: " + userId);
+        Log.d("UserExplore", "Loading profile for user: " + userId);
 
         db.collection("user").document(userId).get()
                 .addOnSuccessListener(doc -> {
                     if (doc.exists()) {
                         Long gender = doc.getLong("gender");
                         currentUserGender = (gender != null) ? gender.intValue() : -1;
-                        Log.d("UserExplore", "User gender loaded: " + currentUserGender);
-                        // Now load events after gender is retrieved
+
+                        // Get user description for AI recommendations
+                        userDescription = doc.getString("description");
+                        if (userDescription == null) {
+                            userDescription = "";
+                        }
+
+                        Log.d("UserExplore", "User profile loaded. Gender: " + currentUserGender + ", Description: " + userDescription);
+
+                        // Enable AI button if user has description
+                        if (!TextUtils.isEmpty(userDescription)) {
+                            btnAIRecommendations.setEnabled(true);
+                            btnAIRecommendations.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.colorPrimary));
+                        } else {
+                            btnAIRecommendations.setEnabled(false);
+                            btnAIRecommendations.setBackgroundTintList(ContextCompat.getColorStateList(this, android.R.color.darker_gray));
+                            btnAIRecommendations.setText("No user description for AI");
+                        }
+
+                        // Now load events after profile is retrieved
                         loadAllEvents();
                     } else {
                         Log.e("UserExplore", "User profile not found in Firestore");
@@ -148,6 +231,58 @@ public class UserExploreActivity extends AppCompatActivity {
                     Log.e("UserExplore", "Failed to load events: " + e.getMessage());
                     Toast.makeText(this, "Failed to load events: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                 });
+    }
+
+    private void getAIRecommendations() {
+        if (TextUtils.isEmpty(userDescription)) {
+            Toast.makeText(this, "No user description found for AI recommendations", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        showLoading("Analyzing your interests...");
+        btnAIRecommendations.setEnabled(false);
+
+        aiRecommendationManager.getPersonalizedRecommendations(userDescription, new AIRecommendationManager.RecommendationCallback() {
+            @Override
+            public void onSuccess(List<Event> recommendedEvents) {
+                runOnUiThread(() -> {
+                    hideLoading();
+                    showingAIRecommendations = true;
+                    btnAIRecommendations.setEnabled(true);
+                    btnAIRecommendations.setText("Show All Events");
+                    btnAIRecommendations.setBackgroundTintList(ContextCompat.getColorStateList(UserExploreActivity.this, R.color.green));
+
+                    eventList.clear();
+                    eventList.addAll(recommendedEvents);
+                    adapter.notifyDataSetChanged();
+
+                    if (recommendedEvents.isEmpty()) {
+                        Toast.makeText(UserExploreActivity.this,
+                                "No specific recommendations found. Showing all events.",
+                                Toast.LENGTH_LONG).show();
+                        loadAllEvents();
+                    } else {
+                        Toast.makeText(UserExploreActivity.this,
+                                "AI found " + recommendedEvents.size() + " personalized recommendations!",
+                                Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
+
+            @Override
+            public void onError(String error) {
+                runOnUiThread(() -> {
+                    hideLoading();
+                    btnAIRecommendations.setEnabled(true);
+                    btnAIRecommendations.setText("Get AI Recommendations");
+                    showingAIRecommendations = false;
+                    Toast.makeText(UserExploreActivity.this,
+                            "AI recommendations unavailable. Showing all events.",
+                            Toast.LENGTH_SHORT).show();
+                    loadAllEvents();
+                });
+            }
+        });
     }
 
     private Event parseEventFromDocument(QueryDocumentSnapshot doc) {
@@ -325,6 +460,13 @@ public class UserExploreActivity extends AppCompatActivity {
 
                 holder.tvCapacity.setText(event.getCurrentAttendees() + " / " + event.getPax());
 
+                // Show AI recommendation badge if showing AI recommendations
+                if (showingAIRecommendations) {
+                    holder.tvAIRecBadge.setVisibility(View.VISIBLE);
+                } else {
+                    holder.tvAIRecBadge.setVisibility(View.GONE);
+                }
+
                 // Check if event is full
                 if (event.getCurrentAttendees() >= event.getPax()) {
                     holder.btnJoin.setText("Full");
@@ -348,7 +490,7 @@ public class UserExploreActivity extends AppCompatActivity {
         }
 
         class EventViewHolder extends RecyclerView.ViewHolder {
-            TextView tvEventName, tvVenue, tvDatetime, tvCapacity;
+            TextView tvEventName, tvVenue, tvDatetime, tvCapacity, tvAIRecBadge;
             Button btnJoin;
 
             EventViewHolder(@NonNull View itemView) {
@@ -359,6 +501,9 @@ public class UserExploreActivity extends AppCompatActivity {
                     tvDatetime = itemView.findViewById(R.id.tv_event_datetime);
                     tvCapacity = itemView.findViewById(R.id.tv_event_capacity);
                     btnJoin = itemView.findViewById(R.id.btn_join);
+
+                    // Add AI recommendation badge - you'll need to add this TextView to your event_item.xml
+                    tvAIRecBadge = itemView.findViewById(R.id.tv_ai_recommendation_badge);
 
                 } catch (Exception e) {
                     Log.e("EventViewHolder", "Error initializing views: " + e.getMessage());
@@ -435,6 +580,15 @@ public class UserExploreActivity extends AppCompatActivity {
                         Log.e("EventAdapter", "Failed to join event: " + e.getMessage());
                         Toast.makeText(UserExploreActivity.this, "Failed to join: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                     });
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Refresh events when returning to this activity
+        if (!showingAIRecommendations) {
+            loadAllEvents();
         }
     }
 }
