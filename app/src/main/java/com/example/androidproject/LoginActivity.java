@@ -1,7 +1,9 @@
 package com.example.androidproject;
 
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.os.Bundle;
+import android.text.InputType;
 import android.util.Log;
 import android.util.Patterns;
 import android.view.View;
@@ -13,9 +15,13 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.google.android.material.textfield.TextInputEditText;
+import com.google.android.material.textfield.TextInputLayout;
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseAuthInvalidUserException;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
+
+import java.net.UnknownHostException;
 
 public class LoginActivity extends AppCompatActivity {
 
@@ -67,38 +73,106 @@ public class LoginActivity extends AppCompatActivity {
     private void handleForgotPassword() {
         String email = etEmail.getText() != null ? etEmail.getText().toString().trim() : "";
 
+        // Create a dialog for forgot password
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Reset Password");
+        builder.setMessage("Enter your email address and we'll send you a password reset link.");
+
+        // Create input field
+        final TextInputLayout inputLayout = new TextInputLayout(this);
+        final TextInputEditText input = new TextInputEditText(this);
+        input.setInputType(InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
+        input.setHint("Email address");
+        inputLayout.addView(input);
+
+        // Set margins
+        int margin = (int) (16 * getResources().getDisplayMetrics().density);
+        inputLayout.setPadding(margin, 0, margin, 0);
+
+        if (!email.isEmpty()) {
+            input.setText(email); // Pre-fill with email from login field
+        }
+
+        builder.setView(inputLayout);
+
+        builder.setPositiveButton("Send Reset Link", null); // We'll override this
+        builder.setNegativeButton("Cancel", (dialog, which) -> dialog.cancel());
+
+        AlertDialog dialog = builder.create();
+        dialog.show();
+
+        // Override the positive button to prevent dialog dismissal on validation error
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            String resetEmail = input.getText().toString().trim();
+            if (validateResetEmail(resetEmail)) {
+                sendResetEmail(resetEmail);
+                dialog.dismiss();
+            }
+        });
+    }
+
+    private boolean validateResetEmail(String email) {
         if (email.isEmpty()) {
-            etEmail.setError("Enter your email first");
-            etEmail.requestFocus();
-            return;
+            Toast.makeText(LoginActivity.this, "Please enter your email", Toast.LENGTH_SHORT).show();
+            return false;
         }
 
         if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-            etEmail.setError("Enter a valid email");
-            etEmail.requestFocus();
-            return;
+            Toast.makeText(LoginActivity.this, "Please enter a valid email address", Toast.LENGTH_SHORT).show();
+            return false;
         }
 
+        return true;
+    }
+
+    private void sendResetEmail(String email) {
         progressBar.setVisibility(View.VISIBLE);
 
-        // Send password reset email
         mAuth.sendPasswordResetEmail(email)
                 .addOnCompleteListener(task -> {
                     progressBar.setVisibility(View.GONE);
 
                     if (task.isSuccessful()) {
-                        Toast.makeText(LoginActivity.this,
-                                "Password reset email sent to " + email,
-                                Toast.LENGTH_LONG).show();
+                        showSuccessDialog(email);
                     } else {
-                        String errorMessage = task.getException() != null
-                                ? task.getException().getMessage()
-                                : "Failed to send reset email";
-                        Toast.makeText(LoginActivity.this,
-                                errorMessage,
-                                Toast.LENGTH_LONG).show();
+                        handleResetError(task.getException());
                     }
                 });
+    }
+
+    private void showSuccessDialog(String email) {
+        new AlertDialog.Builder(this)
+                .setTitle("Check Your Email")
+                .setMessage("We've sent password reset instructions to:\n\n" + email + "\n\nPlease check your inbox and follow the instructions to reset your password.")
+                .setPositiveButton("OK", null)
+                .setIcon(android.R.drawable.ic_dialog_info)
+                .show();
+    }
+
+    private void handleResetError(Exception exception) {
+        String errorMessage = "Failed to send reset email. Please try again.";
+
+        if (exception != null) {
+            String exceptionMessage = exception.getMessage();
+            if (exception instanceof FirebaseAuthInvalidUserException) {
+                errorMessage = "No account found with this email address. Please check your email or sign up for a new account.";
+            } else if (exceptionMessage != null && exceptionMessage.toLowerCase().contains("network")) {
+                errorMessage = "Network error. Please check your internet connection and try again.";
+            } else if (exceptionMessage != null && exceptionMessage.contains("invalid-email")) {
+                errorMessage = "Invalid email address format. Please check your email and try again.";
+            } else if (exception.getCause() instanceof UnknownHostException) {
+                errorMessage = "No internet connection. Please check your network and try again.";
+            } else {
+                errorMessage = "Error: " + exceptionMessage;
+            }
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle("Reset Failed")
+                .setMessage(errorMessage)
+                .setPositiveButton("OK", null)
+                .setIcon(android.R.drawable.ic_dialog_alert)
+                .show();
     }
 
     private void handleLogin() {
@@ -140,16 +214,28 @@ public class LoginActivity extends AppCompatActivity {
                         FirebaseUser firebaseUser = mAuth.getCurrentUser();
                         if (firebaseUser != null) {
                             Log.d("LoginDebug", "Login successful, UID: " + firebaseUser.getUid());
-                            // Check role by UID in Firestore
+                            // Directly check user role without email verification
                             checkUserRole(firebaseUser.getUid());
                         } else {
                             Log.e("LoginDebug", "Login succeeded but no user found");
                             Toast.makeText(LoginActivity.this, "Login succeeded but no user found.", Toast.LENGTH_SHORT).show();
                         }
                     } else {
-                        String errorMessage = task.getException() != null
-                                ? task.getException().getMessage()
-                                : "Authentication failed";
+                        String errorMessage = "Authentication failed";
+                        Exception exception = task.getException();
+
+                        if (exception != null) {
+                            if (exception instanceof FirebaseAuthInvalidUserException) {
+                                errorMessage = "No account found with this email address.";
+                            } else if (exception.getMessage() != null && exception.getMessage().toLowerCase().contains("network")) {
+                                errorMessage = "Network error. Please check your internet connection.";
+                            } else if (exception.getCause() instanceof UnknownHostException) {
+                                errorMessage = "No internet connection. Please check your network and try again.";
+                            } else {
+                                errorMessage = exception.getMessage();
+                            }
+                        }
+
                         Log.e("LoginDebug", "Login failed: " + errorMessage);
                         Toast.makeText(LoginActivity.this, errorMessage, Toast.LENGTH_LONG).show();
                     }

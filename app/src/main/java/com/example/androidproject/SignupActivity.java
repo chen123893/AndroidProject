@@ -2,21 +2,24 @@ package com.example.androidproject;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.text.InputFilter;
 import android.util.Patterns;
 import android.view.View;
 import android.widget.CheckBox;
 import android.widget.ProgressBar;
-import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.auth.UserProfileChangeRequest;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.util.HashMap;
@@ -24,9 +27,9 @@ import java.util.Map;
 
 public class SignupActivity extends AppCompatActivity {
 
+    // Views
     private TextInputEditText etName, etEmail, etPhoneNum, etPassword, etConfirm, etDescription;
     private RadioGroup rgRole, rgGender;
-    private RadioButton rbUser, rbAdmin, rbMale, rbFemale;
     private CheckBox chkTerms;
     private MaterialButton btnCreateAccount;
     private ProgressBar progressBar;
@@ -36,8 +39,12 @@ public class SignupActivity extends AppCompatActivity {
     private FirebaseAuth mAuth;
     private FirebaseFirestore db;
 
+    // Keep these to re-sign-in for verification checks / resend
+    private String pendingEmail, pendingPassword, pendingName, pendingPhone, pendingDesc, pendingCollection;
+    private int pendingGender; // 1=male, 0=female
+
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_signup);
 
@@ -53,29 +60,29 @@ public class SignupActivity extends AppCompatActivity {
         etConfirm = findViewById(R.id.et_signup_confirm);
         etDescription = findViewById(R.id.et_signup_description);
         rgRole = findViewById(R.id.rg_role);
-        rbUser = findViewById(R.id.rb_user);
-        rbAdmin = findViewById(R.id.rb_admin);
         rgGender = findViewById(R.id.rg_gender);
-        rbMale = findViewById(R.id.rb_male);
-        rbFemale = findViewById(R.id.rb_female);
         chkTerms = findViewById(R.id.chk_terms);
         btnCreateAccount = findViewById(R.id.btn_create_account);
         progressBar = findViewById(R.id.progress_signup);
         tvAlreadyAccount = findViewById(R.id.tv_already_account);
 
-        // Button listeners
+        // Optional: trim spaces in email/phone inputs
+        etEmail.setFilters(new InputFilter[]{(s, a, b, d, e, f) -> s != null ? s.toString().replace(" ", "") : null});
+        etPhoneNum.setFilters(new InputFilter[]{(s, a, b, d, e, f) -> s != null ? s.toString().replace(" ", "") : null});
+
         btnCreateAccount.setOnClickListener(v -> handleSignup());
         tvAlreadyAccount.setOnClickListener(v -> finish());
     }
 
     private void handleSignup() {
-        String name = etName.getText() != null ? etName.getText().toString().trim() : "";
-        String email = etEmail.getText() != null ? etEmail.getText().toString().trim() : "";
-        String phoneNum = etPhoneNum.getText() != null ? etPhoneNum.getText().toString().trim() : "";
-        String password = etPassword.getText() != null ? etPassword.getText().toString().trim() : "";
-        String confirm = etConfirm.getText() != null ? etConfirm.getText().toString().trim() : "";
-        String description = etDescription.getText() != null ? etDescription.getText().toString().trim() : "";
+        final String name = getTextTrim(etName);
+        final String email = getTextTrim(etEmail);
+        final String phoneNum = getTextTrim(etPhoneNum);
+        final String password = getTextTrim(etPassword);
+        final String confirm = getTextTrim(etConfirm);
+        final String description = getTextTrim(etDescription);
 
+        // Decide collection ONLY (no role field stored)
         int selectedRoleId = rgRole.getCheckedRadioButtonId();
         String collection;
         if (selectedRoleId == R.id.rb_admin) {
@@ -83,113 +90,216 @@ public class SignupActivity extends AppCompatActivity {
         } else if (selectedRoleId == R.id.rb_user) {
             collection = "user";
         } else {
-            Toast.makeText(this, "Please select a role", Toast.LENGTH_SHORT).show();
+            toast("Please select a role");
             return;
         }
 
+        // Gender
         int selectedGenderId = rgGender.getCheckedRadioButtonId();
-        if (selectedGenderId == -1) {
-            Toast.makeText(this, "Please select gender", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        int genderValue = (selectedGenderId == R.id.rb_male) ? 1 : 0; // 1 = male, 0 = female
+        if (selectedGenderId == -1) { toast("Please select gender"); return; }
+        int genderValue = (selectedGenderId == R.id.rb_male) ? 1 : 0; // 1=Male, 0=Female
 
-        // Input validation
-        if (name.isEmpty()) {
-            etName.setError("Name is required");
-            etName.requestFocus();
-            return;
-        }
-        if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
-            etEmail.setError("Enter a valid email");
-            etEmail.requestFocus();
-            return;
-        }
-        if (phoneNum.isEmpty() || phoneNum.length() < 10) {
-            etPhoneNum.setError("Enter a valid phone number");
-            etPhoneNum.requestFocus();
-            return;
-        }
-        if (password.isEmpty() || password.length() < 6) {
-            etPassword.setError("Password must be at least 6 characters");
-            etPassword.requestFocus();
-            return;
-        }
-        if (!password.equals(confirm)) {
-            etConfirm.setError("Passwords do not match");
-            etConfirm.requestFocus();
-            return;
-        }
-        if (description.isEmpty()) {
-            etDescription.setError("Description is required");
-            etDescription.requestFocus();
-            return;
-        }
-        if (!chkTerms.isChecked()) {
-            Toast.makeText(this, "Please accept Terms and Privacy", Toast.LENGTH_SHORT).show();
-            return;
-        }
+        // Validation
+        if (name.isEmpty()) { setErr(etName, "Name is required"); return; }
+        if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) { setErr(etEmail, "Enter a valid email"); return; }
+        if (phoneNum.replaceAll("\\D", "").length() < 9) { setErr(etPhoneNum, "Enter a valid phone number"); return; }
+        if (password.length() < 6) { setErr(etPassword, "Password must be at least 6 characters"); return; }
+        if (!password.equals(confirm)) { setErr(etConfirm, "Passwords do not match"); return; }
+        if (description.isEmpty()) { setErr(etDescription, "Description is required"); return; }
+        if (!chkTerms.isChecked()) { toast("Please accept Terms and Privacy"); return; }
 
-        progressBar.setVisibility(View.VISIBLE);
-        btnCreateAccount.setEnabled(false);
+        setLoading(true);
 
-        // Create Firebase Auth user
+        // Create Auth user
         mAuth.createUserWithEmailAndPassword(email, password)
                 .addOnCompleteListener(this, task -> {
-                    if (task.isSuccessful()) {
-                        FirebaseUser user = mAuth.getCurrentUser();
-                        if (user != null) {
-                            saveUserToFirestore(user.getUid(), name, email, phoneNum, description, genderValue, collection);
-                        }
-                    } else {
-                        progressBar.setVisibility(View.GONE);
-                        btnCreateAccount.setEnabled(true);
-                        String errorMessage = task.getException() != null ? task.getException().getMessage() : "Registration failed";
-                        Toast.makeText(SignupActivity.this, errorMessage, Toast.LENGTH_LONG).show();
+                    if (!task.isSuccessful()) {
+                        setLoading(false);
+                        toast(task.getException() != null ? task.getException().getMessage() : "Registration failed");
+                        return;
                     }
+                    FirebaseUser fbUser = mAuth.getCurrentUser();
+                    if (fbUser == null) {
+                        setLoading(false);
+                        toast("Registration failed: user is null");
+                        return;
+                    }
+
+                    // Update displayName
+                    UserProfileChangeRequest profile = new UserProfileChangeRequest.Builder()
+                            .setDisplayName(name)
+                            .build();
+                    fbUser.updateProfile(profile);
+
+                    // Send verification email
+                    fbUser.sendEmailVerification()
+                            .addOnSuccessListener(unused -> toast("Verification email sent to " + email + ". Check inbox/spam."))
+                            .addOnFailureListener(e -> toast("Failed to send verification email: " + e.getMessage()));
+
+                    // IMPORTANT: do NOT create Firestore doc yet.
+                    // Enforce verification first.
+                    // Keep data temporarily to finish activation later.
+                    pendingEmail = email;
+                    pendingPassword = password;
+                    pendingName = name;
+                    pendingPhone = phoneNum;
+                    pendingDesc = description;
+                    pendingGender = genderValue;
+                    pendingCollection = collection;
+
+                    // Sign out and show a simple dialog to complete verification
+                    mAuth.signOut();
+                    setLoading(false);
+                    showVerifyDialog();
                 });
     }
 
-    private void saveUserToFirestore(String firebaseUid, String name, String email,
-                                     String phoneNum, String description, int genderValue, String collection) {
+    /** Shows a simple AlertDialog with 3 actions: Open Email, I've Verified, Resend */
+    private void showVerifyDialog() {
+        String msg = "We sent a verification link to:\n" + pendingEmail +
+                "\n\nOpen your email and tap the link, then return here and press “I’ve Verified”.";
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Verify your email")
+                .setMessage(msg)
+                .setCancelable(false)
+                .setPositiveButton("I’ve Verified", (d, which) -> checkVerifiedAndActivate())
+                .setNegativeButton("Open Email App", (d, which) -> {
+                    openEmailApp();
+                    // Keep dialog open behavior: show again after returning
+                    showVerifyDialog();
+                })
+                .setNeutralButton("Resend", (d, which) -> resendVerification(() -> showVerifyDialog()))
+                .create();
+        dialog.show();
+    }
 
-        Map<String, Object> user = new HashMap<>();
-        user.put("name", name);
-        user.put("email", email);
-        user.put("phoneNumber", phoneNum);
-        user.put("description", description);
-        user.put("gender", genderValue); // 1 = Male, 0 = Female
-        user.put("profilePic", null);
+    /** Re-sign in, reload, check isEmailVerified; if verified, create Firestore profile and finish */
+    private void checkVerifiedAndActivate() {
+        setLoading(true);
+        mAuth.signInWithEmailAndPassword(pendingEmail, pendingPassword)
+                .addOnCompleteListener(task -> {
+                    if (!task.isSuccessful()) {
+                        setLoading(false);
+                        toast(task.getException() != null ? task.getException().getMessage() : "Sign-in failed");
+                        showVerifyDialog();
+                        return;
+                    }
+                    FirebaseUser user = mAuth.getCurrentUser();
+                    if (user == null) {
+                        setLoading(false);
+                        toast("Sign-in failed: user is null");
+                        showVerifyDialog();
+                        return;
+                    }
+                    user.reload().addOnCompleteListener(r -> {
+                        if (!r.isSuccessful()) {
+                            setLoading(false);
+                            toast("Failed to reload user");
+                            showVerifyDialog();
+                            return;
+                        }
+                        if (!user.isEmailVerified()) {
+                            setLoading(false);
+                            toast("Email not verified yet. Please click the link in your inbox.");
+                            showVerifyDialog();
+                            return;
+                        }
+                        // VERIFIED — now create Firestore profile
+                        createProfileThenFinish(user);
+                    });
+                });
+    }
 
-        // Generate dynamic ID
-        String generatedID;
-        long timestamp = System.currentTimeMillis();
+    /** Resends verification email (requires sign-in), then runs onDone (usually re-open dialog) */
+    private void resendVerification(Runnable onDone) {
+        setLoading(true);
+        mAuth.signInWithEmailAndPassword(pendingEmail, pendingPassword)
+                .addOnSuccessListener(auth -> {
+                    FirebaseUser user = mAuth.getCurrentUser();
+                    if (user == null) {
+                        setLoading(false);
+                        toast("Resend failed: user is null");
+                        if (onDone != null) onDone.run();
+                        return;
+                    }
+                    user.sendEmailVerification()
+                            .addOnSuccessListener(u -> {
+                                setLoading(false);
+                                toast("Verification email resent to " + pendingEmail);
+                                if (onDone != null) onDone.run();
+                            })
+                            .addOnFailureListener(e -> {
+                                setLoading(false);
+                                toast("Failed to resend email: " + e.getMessage());
+                                if (onDone != null) onDone.run();
+                            });
+                })
+                .addOnFailureListener(e -> {
+                    setLoading(false);
+                    toast("Sign-in failed: " + e.getMessage());
+                    if (onDone != null) onDone.run();
+                });
+    }
 
-        if (collection.equals("admin")) {
-            generatedID = "A" + timestamp;
-            user.put("adminID", generatedID);
-        } else {
-            generatedID = "U" + timestamp;
-            user.put("userID", generatedID);
-        }
+    /** Only after verified: create Firestore profile in 'user' or 'admin' */
+    private void createProfileThenFinish(FirebaseUser fbUser) {
+        final String uid = fbUser.getUid();
+        long ts = System.currentTimeMillis();
+        String generatedID = (pendingCollection.equals("admin") ? "A" : "U") + ts;
 
-        db.collection(collection)
-                .document(firebaseUid)
-                .set(user)
+        Map<String, Object> userDoc = new HashMap<>();
+        userDoc.put("name", pendingName);
+        userDoc.put("email", pendingEmail);
+        userDoc.put("phoneNumber", pendingPhone);
+        userDoc.put("description", pendingDesc);
+        userDoc.put("gender", pendingGender);   // 1=Male, 0=Female
+        userDoc.put("profilePic", null);
+        userDoc.put("createdAt", ts);
+        if ("admin".equals(pendingCollection)) userDoc.put("adminID", generatedID);
+        else userDoc.put("userID", generatedID);
+
+        db.collection(pendingCollection)
+                .document(uid)
+                .set(userDoc)
                 .addOnSuccessListener(aVoid -> {
-                    progressBar.setVisibility(View.GONE);
-                    btnCreateAccount.setEnabled(true);
-                    Toast.makeText(SignupActivity.this, "Account created successfully! Your ID: " + generatedID, Toast.LENGTH_LONG).show();
-
+                    setLoading(false);
+                    toast("Email verified. Account activated!");
+                    // Go to login (or MainActivity if you prefer)
                     Intent intent = new Intent(SignupActivity.this, LoginActivity.class);
                     intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
                     startActivity(intent);
                     finish();
                 })
                 .addOnFailureListener(e -> {
-                    progressBar.setVisibility(View.GONE);
-                    btnCreateAccount.setEnabled(true);
-                    Toast.makeText(SignupActivity.this, "Failed to save user data: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    setLoading(false);
+                    toast("Failed to create profile: " + e.getMessage());
+                    // Keep user signed in; you may signOut() if you want.
                 });
+    }
+
+    private void openEmailApp() {
+        Intent intent = getPackageManager().getLaunchIntentForPackage("com.google.android.gm");
+        if (intent != null) {
+            startActivity(intent);
+        } else {
+            Intent mailIntent = new Intent(Intent.ACTION_MAIN);
+            mailIntent.addCategory(Intent.CATEGORY_APP_EMAIL);
+            startActivity(Intent.createChooser(mailIntent, "Open email app"));
+        }
+    }
+
+    // ---------- helpers ----------
+    private String getTextTrim(TextInputEditText et) {
+        return et.getText() == null ? "" : et.getText().toString().trim();
+    }
+    private void setErr(TextInputEditText et, String msg) {
+        et.setError(msg); et.requestFocus();
+    }
+    private void setLoading(boolean loading) {
+        progressBar.setVisibility(loading ? View.VISIBLE : View.GONE);
+        btnCreateAccount.setEnabled(!loading);
+    }
+    private void toast(String msg) {
+        Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
     }
 }
