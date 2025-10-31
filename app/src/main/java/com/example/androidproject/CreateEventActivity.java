@@ -1,21 +1,32 @@
 package com.example.androidproject;
 
+import android.app.AlertDialog;
 import android.app.DatePickerDialog;
 import android.app.TimePickerDialog;
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.DisplayMetrics;
+import android.view.Gravity;
+import android.view.ViewGroup;
+import android.view.Window;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.GridLayout;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.RadioGroup;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.bumptech.glide.Glide;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.HashMap;
 import java.util.Locale;
@@ -25,11 +36,22 @@ public class CreateEventActivity extends AppCompatActivity {
 
     private EditText eventName, venue, startDateTime, endDateTime, pax, description;
     private RadioGroup genderGroup;
-    private Button createBtn;
+    private Button createBtn, selectImageBtn;
+    private ImageView selectedImageView;
+    private TextView tvTapHint;
+
     private FirebaseFirestore db;
 
     private Calendar startCalendar, endCalendar;
     private SimpleDateFormat dateTimeFormatter;
+
+    // Built-in image catalog
+    private final ArrayList<String> IMAGE_NAMES = new ArrayList<>();
+    private final ArrayList<Integer> IMAGE_RES_IDS = new ArrayList<>();
+
+    // Selection state
+    private String selectedImageName = null;
+    private int selectedImageResId = 0; // 0 = none chosen yet
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -42,6 +64,7 @@ public class CreateEventActivity extends AppCompatActivity {
         endCalendar.add(Calendar.HOUR, 2);
         dateTimeFormatter = new SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault());
 
+        // Views
         eventName = findViewById(R.id.eventName);
         venue = findViewById(R.id.venue);
         startDateTime = findViewById(R.id.startDateTime);
@@ -50,12 +73,22 @@ public class CreateEventActivity extends AppCompatActivity {
         description = findViewById(R.id.description);
         genderGroup = findViewById(R.id.genderGroup);
         createBtn = findViewById(R.id.createBtn);
+        selectImageBtn = findViewById(R.id.selectImageBtn);
+        selectedImageView = findViewById(R.id.selectedImageView);
+        tvTapHint = findViewById(R.id.tvTapHint);
 
+        setupImageCatalog();       // fill lists only (no default selection)
         setupDateTimePickers();
+
+        // Start state: no image, hint visible
+        applySelectedImageUI();
+
+        // Open built-in chooser
+        selectImageBtn.setOnClickListener(v -> openBuiltinImageChooser());
 
         createBtn.setOnClickListener(v -> createEvent());
 
-        // Bottom navigation setup
+        // Bottom navigation
         BottomNavigationView bottomNav = findViewById(R.id.bottom_navigation);
         bottomNav.setSelectedItemId(R.id.nav_create_event);
         bottomNav.setOnItemSelectedListener(item -> {
@@ -75,6 +108,34 @@ public class CreateEventActivity extends AppCompatActivity {
             }
             return false;
         });
+    }
+
+    private void setupImageCatalog() {
+        // Add entries: (label shown to user, drawable resource)
+        IMAGE_NAMES.add("Badminton");
+        IMAGE_RES_IDS.add(R.drawable.event_badminton);
+
+        IMAGE_NAMES.add("Education Fair");
+        IMAGE_RES_IDS.add(R.drawable.event_education);
+
+        IMAGE_NAMES.add("Food Fair");
+        IMAGE_RES_IDS.add(R.drawable.event_food_fair);
+
+        IMAGE_NAMES.add("Pickle Ball");
+        IMAGE_RES_IDS.add(R.drawable.event_pickleball);
+
+        IMAGE_NAMES.add("Pilates");
+        IMAGE_RES_IDS.add(R.drawable.event_pilates);
+
+        IMAGE_NAMES.add("Test Drive");
+        IMAGE_RES_IDS.add(R.drawable.event_testdrive);
+
+        IMAGE_NAMES.add("Wine Test");
+        IMAGE_RES_IDS.add(R.drawable.event_wine_test);
+
+        // No default selection here.
+        // selectedImageName = ... ;
+        // selectedImageResId = ... ;
     }
 
     private void setupDateTimePickers() {
@@ -125,6 +186,136 @@ public class CreateEventActivity extends AppCompatActivity {
         timePicker.setTitle("Select " + title + " - Time");
         timePicker.show();
     }
+    private int dp(int value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
+    }
+    private void openBuiltinImageChooser() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Choose Event Image");
+
+        // Root with inner padding so cards don’t touch rounded edges
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        int hPad = dp(16), vPad = dp(8);
+        root.setPadding(hPad, vPad, hPad, vPad);
+        root.setClipToPadding(false); root.setClipChildren(false);
+
+        // Scroll (prevents vertical crop)
+        android.widget.ScrollView scroller = new android.widget.ScrollView(this);
+        scroller.setFillViewport(true);
+
+        // Grid
+        GridLayout grid = new GridLayout(this);
+        grid.setUseDefaultMargins(false);
+        grid.setAlignmentMode(GridLayout.ALIGN_BOUNDS);
+        grid.setClipToPadding(false);
+        int gridHPad = dp(8);
+        grid.setPadding(gridHPad, dp(12), gridHPad, dp(12));
+
+        // --- Sizing logic: dialog width & column count ---
+        DisplayMetrics dm = getResources().getDisplayMetrics();
+        int screenW = dm.widthPixels;
+        float density = dm.density;
+
+        // Target dialog width (~92% screen, but cap at 520dp so it doesn’t get too wide on tablets)
+        int targetDialogW = Math.min((int) (screenW * 0.92f), dp(520));
+
+        // Available inner width after root & grid padding
+        int innerW = targetDialogW - (hPad * 2) - (gridHPad * 2);
+
+        // Choose columns by dp width (2 for narrow phones, 3 for wider)
+        int screenWdp = Math.round(screenW / density);
+        int cols = (screenWdp >= 380) ? 3 : 2;   // <-- key change
+        grid.setColumnCount(cols);
+
+        int gap = dp(12);                        // spacing between cards
+        int totalGaps = gap * (cols + 1);        // left + between + right
+        int itemW = (innerW - totalGaps) / cols; // card width
+
+        // Build cells
+        for (int i = 0; i < IMAGE_NAMES.size(); i++) {
+            String label = IMAGE_NAMES.get(i);
+            int resId = IMAGE_RES_IDS.get(i);
+
+            LinearLayout card = new LinearLayout(this);
+            GridLayout.LayoutParams lp = new GridLayout.LayoutParams();
+            lp.width = itemW;
+            lp.height = ViewGroup.LayoutParams.WRAP_CONTENT;
+            lp.setMargins(gap / 2, gap / 2, gap / 2, gap / 2);
+            card.setLayoutParams(lp);
+            card.setOrientation(LinearLayout.VERTICAL);
+            card.setGravity(Gravity.CENTER);
+            card.setPadding(dp(12), dp(12), dp(12), dp(12));
+            card.setBackgroundResource(R.drawable.image_item_background);
+            card.setClickable(true);
+
+            ImageView iv = new ImageView(this);
+            LinearLayout.LayoutParams ivLp =
+                    new LinearLayout.LayoutParams(itemW - dp(36), itemW - dp(36));
+            iv.setLayoutParams(ivLp);
+            iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            Glide.with(this).load(resId).into(iv);
+
+            TextView tv = new TextView(this);
+            LinearLayout.LayoutParams tvLp =
+                    new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                            ViewGroup.LayoutParams.WRAP_CONTENT);
+            tvLp.setMargins(0, dp(8), 0, 0);
+            tv.setLayoutParams(tvLp);
+            tv.setText(label);
+            tv.setTextSize(12);
+            tv.setGravity(Gravity.CENTER);
+
+            card.addView(iv);
+            card.addView(tv);
+            grid.addView(card);
+
+            final int index = i;
+            card.setOnClickListener(v -> {
+                selectedImageName = IMAGE_NAMES.get(index);
+                selectedImageResId = IMAGE_RES_IDS.get(index);
+                applySelectedImageUI();
+                AlertDialog d = (AlertDialog) v.getTag();
+                if (d != null) d.dismiss();
+            });
+        }
+
+        scroller.addView(grid);
+        root.addView(scroller);
+        builder.setView(root);
+        builder.setNegativeButton("Cancel", null);
+
+        AlertDialog dialog = builder.create();
+
+        // Tag dialog on each card so we can dismiss on click
+        grid.post(() -> {
+            for (int i = 0; i < grid.getChildCount(); i++) {
+                grid.getChildAt(i).setTag(dialog);
+            }
+        });
+
+        dialog.show();
+
+        // Apply the computed dialog width
+        Window w = dialog.getWindow();
+        if (w != null) {
+            w.setLayout(targetDialogW, ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
+    }
+
+
+    private void applySelectedImageUI() {
+        if (selectedImageResId == 0) {
+            // nothing chosen yet
+            selectedImageView.setVisibility(ImageView.GONE);
+            if (tvTapHint != null) tvTapHint.setVisibility(TextView.VISIBLE);
+            return;
+        }
+        // show only the image; hide hint (never show any name/path)
+        Glide.with(this).load(selectedImageResId).into(selectedImageView);
+        selectedImageView.setVisibility(ImageView.VISIBLE);
+        if (tvTapHint != null) tvTapHint.setVisibility(TextView.GONE);
+    }
 
     private void createEvent() {
         String name = eventName.getText().toString().trim();
@@ -144,10 +335,11 @@ public class CreateEventActivity extends AppCompatActivity {
             return;
         }
 
-        int genderCode = 2;
+        int genderCode = 2; // 0=male,1=female,2=none
         int selectedId = genderGroup.getCheckedRadioButtonId();
         if (selectedId == R.id.male) genderCode = 0;
         else if (selectedId == R.id.female) genderCode = 1;
+        else genderCode = 2;
 
         String eventID = "E" + System.currentTimeMillis();
 
@@ -162,9 +354,23 @@ public class CreateEventActivity extends AppCompatActivity {
         event.put("genderSpec", genderCode);
         event.put("currentAttendees", 0);
 
-        String adminUid = FirebaseAuth.getInstance().getCurrentUser().getUid();
+        // Only save image info if the user actually picked one
+        if (selectedImageResId != 0 && selectedImageName != null) {
+            event.put("imageName", selectedImageName);
+            // Optional: also store the resource key
+            // String resKey = getResources().getResourceEntryName(selectedImageResId);
+            // event.put("imageResKey", resKey);
+        }
 
-        // ✅ Fetch adminID (like A001) using admin UID
+        String adminUid = FirebaseAuth.getInstance().getCurrentUser() != null
+                ? FirebaseAuth.getInstance().getCurrentUser().getUid() : null;
+
+        if (adminUid == null) {
+            Toast.makeText(this, "You must be logged in.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Fetch adminID and save
         db.collection("admin")
                 .document(adminUid)
                 .get()
@@ -201,10 +407,16 @@ public class CreateEventActivity extends AppCompatActivity {
         endDateTime.setText("");
         pax.setText("");
         description.setText("");
-        genderGroup.clearCheck();
+        genderGroup.check(R.id.none);
 
+        // Reset date state
         startCalendar = Calendar.getInstance();
         endCalendar = Calendar.getInstance();
         endCalendar.add(Calendar.HOUR, 2);
+
+        // Reset image selection UI
+        selectedImageName = null;
+        selectedImageResId = 0;
+        applySelectedImageUI();
     }
 }
