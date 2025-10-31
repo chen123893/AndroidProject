@@ -29,7 +29,7 @@ public class SignupActivity extends AppCompatActivity {
 
     // Views
     private TextInputEditText etName, etEmail, etPhoneNum, etPassword, etConfirm, etDescription;
-    private RadioGroup rgRole, rgGender;
+    private RadioGroup rgGender;
     private CheckBox chkTerms;
     private MaterialButton btnCreateAccount;
     private ProgressBar progressBar;
@@ -40,7 +40,7 @@ public class SignupActivity extends AppCompatActivity {
     private FirebaseFirestore db;
 
     // Keep these to re-sign-in for verification checks / resend
-    private String pendingEmail, pendingPassword, pendingName, pendingPhone, pendingDesc, pendingCollection;
+    private String pendingEmail, pendingPassword, pendingName, pendingPhone, pendingDesc;
     private int pendingGender; // 1=male, 0=female
 
     @Override
@@ -59,7 +59,6 @@ public class SignupActivity extends AppCompatActivity {
         etPassword = findViewById(R.id.et_signup_password);
         etConfirm = findViewById(R.id.et_signup_confirm);
         etDescription = findViewById(R.id.et_signup_description);
-        rgRole = findViewById(R.id.rg_role);
         rgGender = findViewById(R.id.rg_gender);
         chkTerms = findViewById(R.id.chk_terms);
         btnCreateAccount = findViewById(R.id.btn_create_account);
@@ -81,18 +80,6 @@ public class SignupActivity extends AppCompatActivity {
         final String password = getTextTrim(etPassword);
         final String confirm = getTextTrim(etConfirm);
         final String description = getTextTrim(etDescription);
-
-        // Decide collection ONLY (no role field stored)
-        int selectedRoleId = rgRole.getCheckedRadioButtonId();
-        String collection;
-        if (selectedRoleId == R.id.rb_admin) {
-            collection = "admin";
-        } else if (selectedRoleId == R.id.rb_user) {
-            collection = "user";
-        } else {
-            toast("Please select a role");
-            return;
-        }
 
         // Gender
         int selectedGenderId = rgGender.getCheckedRadioButtonId();
@@ -145,7 +132,6 @@ public class SignupActivity extends AppCompatActivity {
                     pendingPhone = phoneNum;
                     pendingDesc = description;
                     pendingGender = genderValue;
-                    pendingCollection = collection;
 
                     // Sign out and show a simple dialog to complete verification
                     mAuth.signOut();
@@ -157,12 +143,12 @@ public class SignupActivity extends AppCompatActivity {
     /** Shows a simple AlertDialog with 3 actions: Open Email, I've Verified, Resend */
     private void showVerifyDialog() {
         String msg = "We sent a verification link to:\n" + pendingEmail +
-                "\n\nOpen your email and tap the link, then return here and press “I’ve Verified”.";
+                "\n\nOpen your email and tap the link, then return here and press \"I've Verified\".";
         AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("Verify your email")
                 .setMessage(msg)
                 .setCancelable(false)
-                .setPositiveButton("I’ve Verified", (d, which) -> checkVerifiedAndActivate())
+                .setPositiveButton("I've Verified", (d, which) -> checkVerifiedAndActivate())
                 .setNegativeButton("Open Email App", (d, which) -> {
                     openEmailApp();
                     // Keep dialog open behavior: show again after returning
@@ -241,11 +227,10 @@ public class SignupActivity extends AppCompatActivity {
                 });
     }
 
-    /** Only after verified: create Firestore profile in 'user' or 'admin' */
+    /** Only after verified: create Firestore profile in 'user' collection only */
     private void createProfileThenFinish(FirebaseUser fbUser) {
         final String uid = fbUser.getUid();
-        long ts = System.currentTimeMillis();
-        String generatedID = (pendingCollection.equals("admin") ? "A" : "U") + ts;
+        String generatedID = "U" + System.currentTimeMillis();
 
         Map<String, Object> userDoc = new HashMap<>();
         userDoc.put("name", pendingName);
@@ -254,11 +239,10 @@ public class SignupActivity extends AppCompatActivity {
         userDoc.put("description", pendingDesc);
         userDoc.put("gender", pendingGender);   // 1=Male, 0=Female
         userDoc.put("profilePic", null);
-        userDoc.put("createdAt", ts);
-        if ("admin".equals(pendingCollection)) userDoc.put("adminID", generatedID);
-        else userDoc.put("userID", generatedID);
+        userDoc.put("userID", generatedID);
 
-        db.collection(pendingCollection)
+        // Always save to "user" collection
+        db.collection("user")
                 .document(uid)
                 .set(userDoc)
                 .addOnSuccessListener(aVoid -> {
