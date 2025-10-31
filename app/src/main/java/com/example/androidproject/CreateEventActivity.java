@@ -133,9 +133,6 @@ public class CreateEventActivity extends AppCompatActivity {
         IMAGE_NAMES.add("Wine Test");
         IMAGE_RES_IDS.add(R.drawable.event_wine_test);
 
-        // No default selection here.
-        // selectedImageName = ... ;
-        // selectedImageResId = ... ;
     }
 
     private void setupDateTimePickers() {
@@ -355,12 +352,12 @@ public class CreateEventActivity extends AppCompatActivity {
         event.put("currentAttendees", 0);
 
         // Only save image info if the user actually picked one
-        if (selectedImageResId != 0 && selectedImageName != null) {
-            event.put("imageName", selectedImageName);
-            // Optional: also store the resource key
-            // String resKey = getResources().getResourceEntryName(selectedImageResId);
-            // event.put("imageResKey", resKey);
+        if (selectedImageResId != 0) {
+            String resKey = getResources().getResourceEntryName(selectedImageResId);
+            event.put("imageName", resKey);
+            event.put("imageLabel", selectedImageName);
         }
+
 
         String adminUid = FirebaseAuth.getInstance().getCurrentUser() != null
                 ? FirebaseAuth.getInstance().getCurrentUser().getUid() : null;

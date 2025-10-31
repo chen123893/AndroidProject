@@ -8,7 +8,9 @@
     android:layout_margin="8dp"
     android:background="@drawable/card_background"
     android:backgroundTint="@android:color/white"
-    android:backgroundTintMode="src_in">
+    android:backgroundTintMode="src_in"
+    android:clickable="true"
+    android:foreground="?android:attr/selectableItemBackground">
 
     <TextView
         android:id="@+id/tv_event_name"

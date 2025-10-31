@@ -43,6 +43,10 @@
         <activity android:name=".MyEventsActivity" />
         <activity android:name=".EditEventActivity" />
         <activity android:name=".ViewListActivity" />
+        <activity
+            android:name=".ExploreDetailsActivity"
+            android:parentActivityName=".UserExploreActivity" />
+
 
     </application>
 

@@ -14,7 +14,6 @@ import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.app.AlertDialog;
-import android.view.LayoutInflater;
 import android.widget.ProgressBar;
 
 import androidx.annotation.NonNull;
@@ -289,15 +288,15 @@ public class UserExploreActivity extends AppCompatActivity {
         Event event = new Event();
         try {
             event.setId(doc.getId());
-            event.setEventID(doc.getString("eventID")); // Your custom eventID field
+            event.setEventID(doc.getString("eventID"));
             event.setAdminID(doc.getString("adminID"));
             event.setDescription(doc.getString("description"));
             event.setEndDateTime(doc.getString("endDateTime"));
             event.setEventName(doc.getString("eventName"));
             event.setStartDateTime(doc.getString("startDateTime"));
             event.setVenue(doc.getString("venue"));
-
-            // Handle genderSpec - it's stored as Long in Firestore
+            event.setImageName(doc.getString("imageName"));
+            // Handle genderSpec
             Long genderSpec = doc.getLong("genderSpec");
             if (genderSpec != null) {
                 event.setGenderSpec(genderSpec.intValue());
@@ -318,6 +317,7 @@ public class UserExploreActivity extends AppCompatActivity {
             return null;
         }
     }
+
 
     private boolean shouldShowEvent(Event event) {
         // If genderSpec is 2 (None/Any), show to everyone
@@ -392,6 +392,10 @@ public class UserExploreActivity extends AppCompatActivity {
         private int currentAttendees;
         private int pax;
 
+        private String imageName;
+        public String getImageName() { return imageName; }
+        public void setImageName(String imageName) { this.imageName = imageName; }
+
         public Event() {} // Needed for Firestore
 
         // Getters and Setters
@@ -450,7 +454,6 @@ public class UserExploreActivity extends AppCompatActivity {
             try {
                 Event event = events.get(position);
 
-                // Set event data to views
                 holder.tvEventName.setText(event.getEventName() != null ? event.getEventName() : "Unnamed Event");
                 holder.tvVenue.setText("Venue: " + (event.getVenue() != null ? event.getVenue() : "Not specified"));
 
@@ -460,14 +463,12 @@ public class UserExploreActivity extends AppCompatActivity {
 
                 holder.tvCapacity.setText(event.getCurrentAttendees() + " / " + event.getPax());
 
-                // Show AI recommendation badge if showing AI recommendations
                 if (showingAIRecommendations) {
                     holder.tvAIRecBadge.setVisibility(View.VISIBLE);
                 } else {
                     holder.tvAIRecBadge.setVisibility(View.GONE);
                 }
 
-                // Check if event is full
                 if (event.getCurrentAttendees() >= event.getPax()) {
                     holder.btnJoin.setText("Full");
                     holder.btnJoin.setEnabled(false);
@@ -478,11 +479,25 @@ public class UserExploreActivity extends AppCompatActivity {
 
                 holder.btnJoin.setOnClickListener(v -> joinEvent(event, holder.btnJoin));
 
+                holder.itemView.setOnClickListener(v -> {
+                    Intent intent = new Intent(UserExploreActivity.this, ExploreDetailsActivity.class);
+                    intent.putExtra("eventName", event.getEventName());
+                    intent.putExtra("venue", event.getVenue());
+                    intent.putExtra("startDateTime", event.getStartDateTime());
+                    intent.putExtra("endDateTime", event.getEndDateTime());
+                    intent.putExtra("description", event.getDescription());
+                    intent.putExtra("pax", event.getPax());
+                    intent.putExtra("currentAttendees", event.getCurrentAttendees());
+                    intent.putExtra("imageName", event.getImageName());
+                    startActivity(intent);
+                });
+
             } catch (Exception e) {
                 Log.e("EventAdapter", "Error binding view holder: " + e.getMessage());
                 e.printStackTrace();
             }
         }
+
 
         @Override
         public int getItemCount() {
@@ -586,7 +601,6 @@ public class UserExploreActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        // Refresh events when returning to this activity
         if (!showingAIRecommendations) {
             loadAllEvents();
         }
