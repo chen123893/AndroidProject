@@ -147,13 +147,18 @@ public class ViewListActivity extends AppCompatActivity {
         // Get fields safely
         String name = userDoc.getString("name");
         String email = userDoc.getString("email");
-        String phone = userDoc.getString("phoneNumber");
-        String desc = userDoc.getString("description");
         String profileVal = userDoc.getString("profilePic");
+        String phone = userDoc.getString("phoneNumber");
+        Long genderValue = userDoc.getLong("gender");
+        String genderText = (genderValue != null && genderValue == 1) ? "Male" : "Female";
 
         // Populate fields
         usernameView.setText("Name: " + (name != null ? name : "Unknown"));
-        emailView.setText("Email: " + (email != null ? email : "N/A"));
+        emailView.setText(
+                "Email: " + (email != null ? email : "N/A") +
+                        "\nPhone: " + (phone != null ? phone : "N/A") +
+                        "\nGender: " + genderText
+        );
 
         if (profileVal != null && (profileVal.startsWith("http://") || profileVal.startsWith("https://"))) {
             Glide.with(this).load(profileVal).into(profilePic);
@@ -165,6 +170,7 @@ public class ViewListActivity extends AppCompatActivity {
 
         attendeesContainer.addView(attendeeCard);
     }
+
 
     private void removeAttendee(String attendanceDocID, View cardView) {
         db.collection("attendance").document(attendanceDocID)
