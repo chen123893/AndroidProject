@@ -149,16 +149,16 @@ public class ViewListActivity extends AppCompatActivity {
         String email = userDoc.getString("email");
         String phone = userDoc.getString("phoneNumber");
         String desc = userDoc.getString("description");
-        String profileUrl = userDoc.getString("profilePic");
+        String profileVal = userDoc.getString("profilePic");
 
         // Populate fields
         usernameView.setText("Name: " + (name != null ? name : "Unknown"));
         emailView.setText("Email: " + (email != null ? email : "N/A"));
 
-        if (profileUrl != null && !profileUrl.isEmpty()) {
-            Glide.with(this).load(profileUrl).into(profilePic);
+        if (profileVal != null && (profileVal.startsWith("http://") || profileVal.startsWith("https://"))) {
+            Glide.with(this).load(profileVal).into(profilePic);
         } else {
-            profilePic.setImageResource(R.drawable.tofu);
+            profilePic.setImageResource(avatarResForKey(profileVal));
         }
 
         removeBtn.setOnClickListener(v -> removeAttendee(attendanceDocID, attendeeCard));
@@ -176,4 +176,16 @@ public class ViewListActivity extends AppCompatActivity {
                 .addOnFailureListener(e ->
                         Toast.makeText(this, "Failed to remove attendee: " + e.getMessage(), Toast.LENGTH_SHORT).show());
     }
+
+    private int avatarResForKey(String key) {
+        if (key == null) return R.drawable.tofu; // default
+        switch (key.toLowerCase()) {
+            case "profile1": return R.drawable.profile1;
+            case "profile2": return R.drawable.profile2;
+            case "profile3": return R.drawable.profile3;
+            case "default":
+            default:         return R.drawable.tofu;
+        }
+    }
+
 }

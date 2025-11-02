@@ -56,6 +56,10 @@ public class UserProfileActivity extends AppCompatActivity {
             R.drawable.profile2,
             R.drawable.profile3
     );
+    // Keys that will be saved to Firestore (same order as LOCAL_PROFILE_IMAGES & IMAGE_NAMES)
+    private final List<String> IMAGE_KEYS = Arrays.asList(
+            "default", "profile1", "profile2", "profile3"
+    );
 
     private final List<String> IMAGE_NAMES = Arrays.asList(
             "Default",
@@ -205,10 +209,26 @@ public class UserProfileActivity extends AppCompatActivity {
             originalData.put("phone", phone != null ? phone : "");
             originalData.put("description", description != null ? description : "");
             originalData.put("gender", gender != null ? gender : 1);
-            originalData.put("profilePic", profilePicRef != null ? profilePicRef : "");
+// Accept old label values (e.g., "Casual") and normalize to key
+            String profileKey;
+            if (profilePicRef == null) {
+                profileKey = "default";
+            } else if (profilePicRef.startsWith("profile") || profilePicRef.equalsIgnoreCase("default")) {
+                profileKey = profilePicRef; // already a key
+            } else {
+                // convert label -> key and silently fix DB
+                profileKey = keyForLabel(profilePicRef);
+                if (currentCollection != null) {
+                    db.collection(currentCollection).document(currentUserId)
+                            .update("profilePic", profileKey);
+                }
+            }
 
-            // Load profile picture from local resources
-            loadProfileImage(profilePicRef);
+            originalData.put("profilePic", profileKey);
+            loadProfileImage(profileKey);
+
+
+
 
             // Set gender
             if (gender != null) {
@@ -227,19 +247,39 @@ public class UserProfileActivity extends AppCompatActivity {
         }
     }
 
-    private void loadProfileImage(String profilePicRef) {
-        if (profilePicRef != null && !profilePicRef.isEmpty()) {
-            int imageResId = getImageResource(profilePicRef);
-            Glide.with(this)
-                    .load(imageResId)
-                    .placeholder(R.drawable.tofu)
-                    .error(R.drawable.tofu)
-                    .circleCrop()
-                    .into(profilePic);
-        } else {
-            profilePic.setImageResource(R.drawable.tofu);
+    private void loadProfileImage(String profileKey) {
+        int imageResId = avatarResForKey(profileKey);
+        Glide.with(this)
+                .load(imageResId)
+                .placeholder(R.drawable.tofu)
+                .error(R.drawable.tofu)
+                .circleCrop()
+                .into(profilePic);
+    }
+
+    private int avatarResForKey(String key) {
+        if (key == null) return R.drawable.tofu; // default/fallback
+        switch (key.toLowerCase()) {
+            case "profile1": return R.drawable.profile1;
+            case "profile2": return R.drawable.profile2;
+            case "profile3": return R.drawable.profile3;
+            case "default":
+            default:         return R.drawable.tofu;
         }
     }
+
+    private String keyForLabel(String label) {
+        if (label == null) return "default";
+        switch (label.toLowerCase()) {
+            case "professional": return "profile1";
+            case "casual":       return "profile2";
+            case "creative":     return "profile3";
+            case "default":
+            default:             return "default";
+        }
+    }
+
+
 
     private int getImageResource(String imageName) {
         int index = IMAGE_NAMES.indexOf(imageName);
@@ -256,7 +296,7 @@ public class UserProfileActivity extends AppCompatActivity {
         user.put("phoneNumber", "");
         user.put("description", "Tell us about yourself...");
         user.put("gender", 1);
-        user.put("profilePic", "Default");
+        user.put("profilePic", "default");
 
         long timestamp = System.currentTimeMillis();
         String generatedID = "U" + timestamp;
@@ -353,7 +393,8 @@ public class UserProfileActivity extends AppCompatActivity {
         for (int i = 0; i < LOCAL_PROFILE_IMAGES.size(); i++) {
             final int position = i;
             final int imageResId = LOCAL_PROFILE_IMAGES.get(i);
-            final String imageName = IMAGE_NAMES.get(i);
+            final String imageKey  = IMAGE_KEYS.get(i);     // <- save this to Firestore
+            final String imageLabel = IMAGE_NAMES.get(i);
 
             // Create a container for each image item
             LinearLayout container = new LinearLayout(this);
@@ -392,7 +433,7 @@ public class UserProfileActivity extends AppCompatActivity {
             );
             textParams.setMargins(0, 12, 0, 0);
             textView.setLayoutParams(textParams);
-            textView.setText(imageName);
+            textView.setText(imageLabel);
             textView.setTextSize(12);
             textView.setGravity(Gravity.CENTER);
             textView.setMaxWidth(itemWidth - 32);
@@ -410,12 +451,12 @@ public class UserProfileActivity extends AppCompatActivity {
                         .into(profilePic);
 
                 // Save to Firestore
-                saveSelectedImageToFirestore(imageName);
+                saveSelectedImageToFirestore(imageKey);
 
                 // Dismiss dialog
                 ((AlertDialog) v.getTag()).dismiss();
 
-                Toast.makeText(UserProfileActivity.this, "Profile image updated to: " + imageName, Toast.LENGTH_SHORT).show();
+                Toast.makeText(UserProfileActivity.this, "Profile image updated to: " + imageLabel, Toast.LENGTH_SHORT).show();
             });
 
             gridLayout.addView(container);
