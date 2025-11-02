@@ -209,16 +209,33 @@ public class UserExploreActivity extends AppCompatActivity {
                 .addOnSuccessListener(querySnapshot -> {
                     Log.d("UserExplore", "Events loaded: " + querySnapshot.size());
                     eventList.clear();
+
                     for (QueryDocumentSnapshot doc : querySnapshot) {
                         try {
                             Event event = parseEventFromDocument(doc);
+
                             if (event != null && shouldShowEvent(event)) {
+                                // Temporarily add with default count = 0
+                                event.setCurrentAttendees(0);
                                 eventList.add(event);
+
+                                // 🔹 Fetch live attendee count from attendance
+                                db.collection("attendance")
+                                        .whereEqualTo("eventID", event.getEventID()) // use Exxxx ID
+                                        .get()
+                                        .addOnSuccessListener(snapshot -> {
+                                            int liveCount = snapshot.size();
+                                            event.setCurrentAttendees(liveCount);
+                                            adapter.notifyDataSetChanged(); // update UI
+                                        })
+                                        .addOnFailureListener(e ->
+                                                Log.e("UserExplore", "Failed to fetch live count: " + e.getMessage()));
                             }
                         } catch (Exception e) {
                             Log.e("UserExplore", "Error parsing event: " + e.getMessage());
                         }
                     }
+
                     adapter.notifyDataSetChanged();
                     Log.d("UserExplore", "Events displayed: " + eventList.size());
 
@@ -231,6 +248,7 @@ public class UserExploreActivity extends AppCompatActivity {
                     Toast.makeText(this, "Failed to load events: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                 });
     }
+
 
     private void getAIRecommendations() {
         if (TextUtils.isEmpty(userDescription)) {
@@ -529,73 +547,99 @@ public class UserExploreActivity extends AppCompatActivity {
 
         // ------------------ CHECK IF USER JOINED ------------------
         private void checkIfJoined(Event event, Button joinButton) {
-            String userId = mAuth.getCurrentUser().getUid();
-            String eventDocId = event.getId(); // Use the Firestore document ID
+            String firebaseUid = mAuth.getCurrentUser().getUid();
+            String eventDocId = event.getId(); // Firestore document ID
 
-            db.collection("attendance")
-                    .whereEqualTo("eventID", eventDocId)
-                    .whereEqualTo("userID", userId)
+            // Step 1: Find user's custom userID ("Uxxxxxx")
+            db.collection("user")
+                    .document(firebaseUid)
                     .get()
-                    .addOnSuccessListener(querySnapshot -> {
-                        if (!querySnapshot.isEmpty()) {
-                            joinButton.setText("Joined");
-                            joinButton.setEnabled(false);
-                            joinButton.setBackgroundTintList(ContextCompat.getColorStateList(UserExploreActivity.this, android.R.color.darker_gray));
-                        } else {
-                            joinButton.setText("Join");
-                            joinButton.setEnabled(true);
-                            joinButton.setBackgroundTintList(ContextCompat.getColorStateList(UserExploreActivity.this, R.color.colorPrimary));
+                    .addOnSuccessListener(userDoc -> {
+                        if (userDoc.exists()) {
+                            String customUserID = userDoc.getString("userID");
+                            if (customUserID == null) {
+                                Log.w("EventAdapter", "User missing custom userID field!");
+                                customUserID = firebaseUid; // fallback
+                            }
+
+                            // Step 2: Check attendance using the custom userID
+                            db.collection("attendance")
+                                    .whereEqualTo("eventID", event.getEventID())  // if you use custom eventID (Exxxxx)
+                                    .whereEqualTo("userID", customUserID)
+                                    .get()
+                                    .addOnSuccessListener(querySnapshot -> {
+                                        if (!querySnapshot.isEmpty()) {
+                                            joinButton.setText("Joined");
+                                            joinButton.setEnabled(false);
+                                            joinButton.setBackgroundTintList(ContextCompat.getColorStateList(UserExploreActivity.this, android.R.color.darker_gray));
+                                        } else {
+                                            joinButton.setText("Join");
+                                            joinButton.setEnabled(true);
+                                            joinButton.setBackgroundTintList(ContextCompat.getColorStateList(UserExploreActivity.this, R.color.colorPrimary));
+                                        }
+                                    })
+                                    .addOnFailureListener(e ->
+                                            Log.e("EventAdapter", "Error checking attendance: " + e.getMessage()));
                         }
                     })
-                    .addOnFailureListener(e -> {
-                        Log.e("EventAdapter", "Error checking attendance: " + e.getMessage());
-                    });
+                    .addOnFailureListener(e ->
+                            Log.e("EventAdapter", "Error fetching user custom ID: " + e.getMessage()));
         }
+
 
         // ------------------ JOIN EVENT ------------------
         private void joinEvent(Event event, Button joinButton) {
-            String userId = mAuth.getCurrentUser().getUid();
-            String eventDocId = event.getId(); // Use the Firestore document ID
+            String firebaseUid = mAuth.getCurrentUser().getUid();
 
-            Log.d("EventAdapter", "Attempting to join event: " + eventDocId + " by user: " + userId);
+            // Step 1: Get user’s custom ID (Uxxxx)
+            db.collection("user").document(firebaseUid)
+                    .get()
+                    .addOnSuccessListener(userDoc -> {
+                        if (!userDoc.exists()) {
+                            Toast.makeText(UserExploreActivity.this, "User record not found!", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
 
-            // Check if event is full before joining
-            if (event.getCurrentAttendees() >= event.getPax()) {
-                Toast.makeText(UserExploreActivity.this, "Event is full!", Toast.LENGTH_SHORT).show();
-                return;
-            }
+                        String customUserID = userDoc.getString("userID");
+                        if (customUserID == null) {
+                            Toast.makeText(UserExploreActivity.this, "Missing userID in profile!", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
 
-            Map<String, Object> attendance = new HashMap<>();
-            attendance.put("eventID", eventDocId);
-            attendance.put("userID", userId);
+                        String eventDocId = event.getId(); // Firestore doc ID
+                        String eventCustomID = event.getEventID(); // e.g., E1760...
 
-            db.collection("attendance")
-                    .add(attendance)
-                    .addOnSuccessListener(docRef -> {
-                        Log.d("EventAdapter", "Successfully joined event");
-                        Toast.makeText(UserExploreActivity.this, "Joined successfully!", Toast.LENGTH_SHORT).show();
+                        // Step 2: Save attendance with eventID = Exxxxx and userID = Uxxxxx
+                        Map<String, Object> attendance = new HashMap<>();
+                        attendance.put("eventID", eventCustomID); // use the Exxxx one for consistency
+                        attendance.put("userID", customUserID);   // use Uxxxx
 
-                        // Update attendee count
-                        DocumentReference eventRef = db.collection("events").document(eventDocId);
-                        eventRef.update("currentAttendees", event.getCurrentAttendees() + 1)
-                                .addOnSuccessListener(aVoid -> {
-                                    Log.d("EventAdapter", "Successfully updated attendee count");
-                                    event.setCurrentAttendees(event.getCurrentAttendees() + 1);
-                                    joinButton.setText("Joined");
-                                    joinButton.setEnabled(false);
-                                    joinButton.setBackgroundTintList(ContextCompat.getColorStateList(UserExploreActivity.this, android.R.color.darker_gray));
-                                    notifyDataSetChanged();
+                        db.collection("attendance")
+                                .add(attendance)
+                                .addOnSuccessListener(docRef -> {
+                                    Log.d("EventAdapter", "Successfully joined event");
+
+                                    // Step 3: Update event count
+                                    DocumentReference eventRef = db.collection("events").document(eventDocId);
+                                    eventRef.update("currentAttendees", event.getCurrentAttendees() + 1)
+                                            .addOnSuccessListener(aVoid -> {
+                                                event.setCurrentAttendees(event.getCurrentAttendees() + 1);
+                                                joinButton.setText("Joined");
+                                                joinButton.setEnabled(false);
+                                                joinButton.setBackgroundTintList(ContextCompat.getColorStateList(UserExploreActivity.this, android.R.color.darker_gray));
+                                                notifyDataSetChanged();
+                                                Toast.makeText(UserExploreActivity.this, "Joined successfully!", Toast.LENGTH_SHORT).show();
+                                            })
+                                            .addOnFailureListener(e ->
+                                                    Toast.makeText(UserExploreActivity.this, "Joined but failed to update count", Toast.LENGTH_SHORT).show());
                                 })
-                                .addOnFailureListener(e -> {
-                                    Log.e("EventAdapter", "Error updating attendee count: " + e.getMessage());
-                                    Toast.makeText(UserExploreActivity.this, "Joined but failed to update count", Toast.LENGTH_SHORT).show();
-                                });
+                                .addOnFailureListener(e ->
+                                        Toast.makeText(UserExploreActivity.this, "Failed to join: " + e.getMessage(), Toast.LENGTH_SHORT).show());
                     })
-                    .addOnFailureListener(e -> {
-                        Log.e("EventAdapter", "Failed to join event: " + e.getMessage());
-                        Toast.makeText(UserExploreActivity.this, "Failed to join: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                    });
+                    .addOnFailureListener(e ->
+                            Log.e("EventAdapter", "Error fetching user custom ID: " + e.getMessage()));
         }
+
     }
 
     @Override

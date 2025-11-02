@@ -213,49 +213,90 @@ public class UserTimetableActivity extends AppCompatActivity {
     }
 
     private void loadJoinedEvents() {
-        String userId = mAuth.getCurrentUser().getUid();
-        Log.d("Timetable", "Loading joined events for user: " + userId);
+        String firebaseUid = mAuth.getCurrentUser().getUid();
+        Log.d("Timetable", "Loading joined events for user UID: " + firebaseUid);
 
         joinedEventsList.clear();
         filteredEventsList.clear();
 
-        db.collection("attendance")
-                .whereEqualTo("userID", userId)
-                .get()
-                .addOnSuccessListener(attendanceQuery -> {
-                    Log.d("Timetable", "Found " + attendanceQuery.size() + " attendance records");
-
-                    if (attendanceQuery.isEmpty()) {
+        // Step 1️⃣ - get custom userID (Uxxxx)
+        db.collection("user").document(firebaseUid).get()
+                .addOnSuccessListener(userDoc -> {
+                    if (!userDoc.exists()) {
+                        Log.e("Timetable", "User record not found!");
                         updateEventsDisplay();
                         return;
                     }
 
-                    for (QueryDocumentSnapshot attendanceDoc : attendanceQuery) {
-                        String eventId = attendanceDoc.getString("eventID");
-                        if (eventId != null) {
-                            db.collection("events").document(eventId).get()
-                                    .addOnSuccessListener(eventDoc -> {
-                                        if (eventDoc.exists()) {
-                                            Event event = parseEventFromDocument(eventDoc);
-                                            if (event != null) {
-                                                joinedEventsList.add(event);
-                                                filteredEventsList.add(event);
-                                                updateEventsDisplay();
-                                            }
-                                        }
-                                    })
-                                    .addOnFailureListener(e -> {
-                                        Log.e("Timetable", "Error loading event: " + e.getMessage());
-                                    });
-                        }
+                    String customUserID = userDoc.getString("userID");
+                    if (customUserID == null) {
+                        Log.e("Timetable", "User has no custom userID field!");
+                        updateEventsDisplay();
+                        return;
                     }
+
+                    // Step 2️⃣ - find all events the user joined
+                    db.collection("attendance")
+                            .whereEqualTo("userID", customUserID)
+                            .get()
+                            .addOnSuccessListener(attendanceQuery -> {
+                                Log.d("Timetable", "Found " + attendanceQuery.size() + " attendance records for " + customUserID);
+
+                                if (attendanceQuery.isEmpty()) {
+                                    updateEventsDisplay();
+                                    return;
+                                }
+
+                                HashMap<String, Boolean> seenEvents = new HashMap<>();
+
+                                for (QueryDocumentSnapshot attendanceDoc : attendanceQuery) {
+                                    String eventCustomID = attendanceDoc.getString("eventID");
+                                    if (eventCustomID != null && !seenEvents.containsKey(eventCustomID)) {
+                                        seenEvents.put(eventCustomID, true);
+
+                                        // Step 3️⃣ - fetch event details
+                                        db.collection("events")
+                                                .whereEqualTo("eventID", eventCustomID)
+                                                .get()
+                                                .addOnSuccessListener(eventSnapshots -> {
+                                                    for (QueryDocumentSnapshot eventDoc : eventSnapshots) {
+                                                        Event event = parseEventFromDocument(eventDoc);
+                                                        if (event != null) {
+
+                                                            // ✅ Step 4️⃣ - fetch live attendee count
+                                                            db.collection("attendance")
+                                                                    .whereEqualTo("eventID", event.getEventID())
+                                                                    .get()
+                                                                    .addOnSuccessListener(snapshot -> {
+                                                                        int liveCount = snapshot.size();
+                                                                        event.setCurrentAttendees(liveCount);
+
+                                                                        joinedEventsList.add(event);
+                                                                        filteredEventsList.add(event);
+                                                                        updateEventsDisplay();
+                                                                    })
+                                                                    .addOnFailureListener(e ->
+                                                                            Log.e("Timetable", "Failed to fetch live count: " + e.getMessage()));
+                                                        }
+                                                    }
+                                                })
+                                                .addOnFailureListener(e ->
+                                                        Log.e("Timetable", "Error loading event: " + e.getMessage()));
+                                    }
+                                }
+                            })
+                            .addOnFailureListener(e -> {
+                                Log.e("Timetable", "Failed to load attendance: " + e.getMessage());
+                                Toast.makeText(this, "Failed to load your events", Toast.LENGTH_SHORT).show();
+                                updateEventsDisplay();
+                            });
                 })
                 .addOnFailureListener(e -> {
-                    Log.e("Timetable", "Failed to load attendance records: " + e.getMessage());
-                    Toast.makeText(this, "Failed to load your events", Toast.LENGTH_SHORT).show();
+                    Log.e("Timetable", "Failed to get userID: " + e.getMessage());
                     updateEventsDisplay();
                 });
     }
+
 
     private void updateEventsDisplay() {
         adapter.notifyDataSetChanged();
