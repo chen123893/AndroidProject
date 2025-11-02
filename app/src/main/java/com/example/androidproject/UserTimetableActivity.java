@@ -50,6 +50,8 @@ public class UserTimetableActivity extends AppCompatActivity {
     private Calendar endCalendar = Calendar.getInstance();
     private SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
     private SimpleDateFormat displayDateFormat = new SimpleDateFormat("EEE, MMM d, yyyy", Locale.getDefault());
+    private final SimpleDateFormat EVENT_DATETIME_FMT =
+            new SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault());
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -169,34 +171,36 @@ public class UserTimetableActivity extends AppCompatActivity {
 
     private boolean isEventInDateRange(Event event) {
         try {
-            String eventDateString = event.getStartDateTime().split(" ")[0];
-            Date eventDate = dateFormat.parse(eventDateString);
+            String raw = event.getStartDateTime();
+            if (raw == null || raw.trim().isEmpty()) return false;
 
-            if (eventDate != null) {
-                Calendar eventCalendar = Calendar.getInstance();
-                eventCalendar.setTime(eventDate);
+            // Parse the full "dd MMM yyyy, hh:mm a" string
+            Date startDt = EVENT_DATETIME_FMT.parse(raw);
+            if (startDt == null) return false;
 
-                // Set time to beginning of day for comparison
-                Calendar startCal = (Calendar) startCalendar.clone();
-                startCal.set(Calendar.HOUR_OF_DAY, 0);
-                startCal.set(Calendar.MINUTE, 0);
-                startCal.set(Calendar.SECOND, 0);
+            Calendar eventCal = Calendar.getInstance();
+            eventCal.setTime(startDt);
 
-                Calendar endCal = (Calendar) endCalendar.clone();
-                endCal.set(Calendar.HOUR_OF_DAY, 23);
-                endCal.set(Calendar.MINUTE, 59);
-                endCal.set(Calendar.SECOND, 59);
+            // Build inclusive day-range from the pickers
+            Calendar startCal = (Calendar) startCalendar.clone();
+            startCal.set(Calendar.HOUR_OF_DAY, 0);
+            startCal.set(Calendar.MINUTE, 0);
+            startCal.set(Calendar.SECOND, 0);
+            startCal.set(Calendar.MILLISECOND, 0);
 
-                return !eventCalendar.before(startCal) && !eventCalendar.after(endCal);
-            }
-        } catch (ParseException e) {
-            Log.e("Timetable", "Error parsing event date: " + e.getMessage());
-        } catch (ArrayIndexOutOfBoundsException e) {
-            Log.e("Timetable", "Invalid date format in event: " + event.getStartDateTime());
+            Calendar endCal = (Calendar) endCalendar.clone();
+            endCal.set(Calendar.HOUR_OF_DAY, 23);
+            endCal.set(Calendar.MINUTE, 59);
+            endCal.set(Calendar.SECOND, 59);
+            endCal.set(Calendar.MILLISECOND, 999);
+
+            return !eventCal.before(startCal) && !eventCal.after(endCal);
+        } catch (Exception e) {
+            Log.e("Timetable", "Date parse error for: " + event.getStartDateTime() + " → " + e.getMessage());
+            return false;
         }
-
-        return false;
     }
+
 
     private void clearDateFilter() {
         startCalendar = Calendar.getInstance();
@@ -457,44 +461,63 @@ public class UserTimetableActivity extends AppCompatActivity {
         }
 
         private void leaveEvent(Event event, int position) {
-            String userId = mAuth.getCurrentUser().getUid();
-            String eventDocId = event.getId();
+            String firebaseUid = mAuth.getCurrentUser().getUid();
 
-            db.collection("attendance")
-                    .whereEqualTo("eventID", eventDocId)
-                    .whereEqualTo("userID", userId)
-                    .get()
-                    .addOnSuccessListener(querySnapshot -> {
-                        if (!querySnapshot.isEmpty()) {
-                            querySnapshot.getDocuments().get(0).getReference().delete()
-                                    .addOnSuccessListener(aVoid -> {
-                                        Toast.makeText(UserTimetableActivity.this, "Left event successfully!", Toast.LENGTH_SHORT).show();
-
-                                        DocumentReference eventRef = db.collection("events").document(eventDocId);
-                                        eventRef.update("currentAttendees", Math.max(0, event.getCurrentAttendees() - 1))
-                                                .addOnSuccessListener(aVoid1 -> {
-                                                    // Remove from both lists
-                                                    joinedEventsList.remove(event);
-                                                    events.remove(position);
-                                                    notifyItemRemoved(position);
-                                                    updateEventsDisplay();
-                                                })
-                                                .addOnFailureListener(e -> {
-                                                    joinedEventsList.remove(event);
-                                                    events.remove(position);
-                                                    notifyItemRemoved(position);
-                                                    updateEventsDisplay();
-                                                });
-                                    })
-                                    .addOnFailureListener(e -> {
-                                        Toast.makeText(UserTimetableActivity.this, "Failed to leave event", Toast.LENGTH_SHORT).show();
-                                    });
+            // Step 1️⃣ Get the user's custom userID first
+            db.collection("user").document(firebaseUid).get()
+                    .addOnSuccessListener(userDoc -> {
+                        if (!userDoc.exists()) {
+                            Toast.makeText(UserTimetableActivity.this, "User not found", Toast.LENGTH_SHORT).show();
+                            return;
                         }
+
+                        String customUserID = userDoc.getString("userID");
+                        if (customUserID == null) {
+                            Toast.makeText(UserTimetableActivity.this, "Missing user ID field", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+
+                        // Step 2️⃣ Match by eventID (E001 etc.) and customUserID (U001)
+                        db.collection("attendance")
+                                .whereEqualTo("eventID", event.getEventID())
+                                .whereEqualTo("userID", customUserID)
+                                .get()
+                                .addOnSuccessListener(querySnapshot -> {
+                                    if (!querySnapshot.isEmpty()) {
+                                        querySnapshot.getDocuments().get(0).getReference().delete()
+                                                .addOnSuccessListener(aVoid -> {
+                                                    Toast.makeText(UserTimetableActivity.this, "Left event successfully!", Toast.LENGTH_SHORT).show();
+
+                                                    // Step 3️⃣ Update attendee count
+                                                    db.collection("events")
+                                                            .whereEqualTo("eventID", event.getEventID())
+                                                            .get()
+                                                            .addOnSuccessListener(eventSnap -> {
+                                                                if (!eventSnap.isEmpty()) {
+                                                                    DocumentReference eventRef = eventSnap.getDocuments().get(0).getReference();
+                                                                    eventRef.update("currentAttendees", Math.max(0, event.getCurrentAttendees() - 1));
+                                                                }
+
+                                                                // Remove from list
+                                                                joinedEventsList.remove(event);
+                                                                events.remove(position);
+                                                                notifyItemRemoved(position);
+                                                                updateEventsDisplay();
+                                                            });
+                                                })
+                                                .addOnFailureListener(e ->
+                                                        Toast.makeText(UserTimetableActivity.this, "Failed to leave event", Toast.LENGTH_SHORT).show());
+                                    } else {
+                                        Toast.makeText(UserTimetableActivity.this, "Attendance record not found", Toast.LENGTH_SHORT).show();
+                                    }
+                                })
+                                .addOnFailureListener(e ->
+                                        Toast.makeText(UserTimetableActivity.this, "Error leaving event", Toast.LENGTH_SHORT).show());
                     })
-                    .addOnFailureListener(e -> {
-                        Toast.makeText(UserTimetableActivity.this, "Error leaving event", Toast.LENGTH_SHORT).show();
-                    });
-        }
+                    .addOnFailureListener(e ->
+                            Toast.makeText(UserTimetableActivity.this, "Error fetching user data", Toast.LENGTH_SHORT).show());
+
+    }
     }
 
     private void setupBottomNavigation() {

@@ -93,6 +93,9 @@ public class UserProfileActivity extends AppCompatActivity {
         // Setup bottom navigation
         setupBottomNavigation();
     }
+    private int dp(int v) {
+        return Math.round(v * getResources().getDisplayMetrics().density);
+    }
 
     private void initializeViews() {
         etName = findViewById(R.id.etName);
@@ -329,16 +332,23 @@ public class UserProfileActivity extends AppCompatActivity {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Choose Profile Picture");
 
-        // Create a GridLayout for the images
         GridLayout gridLayout = new GridLayout(this);
-        gridLayout.setColumnCount(3); // Fixed 3 columns
-        gridLayout.setPadding(32, 32, 32, 32);
+        gridLayout.setUseDefaultMargins(false);
+        gridLayout.setAlignmentMode(GridLayout.ALIGN_BOUNDS);
+        gridLayout.setPadding(dp(16), dp(16), dp(16), dp(16)); // smaller outer padding
 
-        // Calculate the width for each item to fill the row properly
-        DisplayMetrics displayMetrics = new DisplayMetrics();
-        getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
-        int screenWidth = displayMetrics.widthPixels;
-        int itemWidth = (screenWidth - (32 * 4)) / 3; // 32dp padding on both sides + gaps
+        // Screen info
+        DisplayMetrics dm = new DisplayMetrics();
+        getWindowManager().getDefaultDisplay().getMetrics(dm);
+        int screenWidth = dm.widthPixels;
+        float density = getResources().getDisplayMetrics().density;
+        int dialogSideInset = dp(24);
+        int outerPad = dp(16);
+        int gap = dp(10);
+        int cols = (int) (screenWidth / density) >= 360 ? 3 : 2;
+        gridLayout.setColumnCount(cols);
+        int usable = screenWidth - (2 * dialogSideInset) - (2 * outerPad);
+        int itemWidth = (usable - gap * (cols - 1)) / cols;
 
         for (int i = 0; i < LOCAL_PROFILE_IMAGES.size(); i++) {
             final int position = i;
@@ -347,25 +357,25 @@ public class UserProfileActivity extends AppCompatActivity {
 
             // Create a container for each image item
             LinearLayout container = new LinearLayout(this);
-            GridLayout.LayoutParams containerParams = new GridLayout.LayoutParams();
-            containerParams.width = itemWidth;
-            containerParams.height = ViewGroup.LayoutParams.WRAP_CONTENT;
-            containerParams.setMargins(8, 8, 8, 8);
-            container.setLayoutParams(containerParams);
+            GridLayout.LayoutParams cLp = new GridLayout.LayoutParams();
+            cLp.width  = itemWidth;
+            cLp.height = ViewGroup.LayoutParams.WRAP_CONTENT;
+            cLp.setMargins(gap / 2, gap / 2, gap / 2, gap / 2);
+            container.setLayoutParams(cLp);
             container.setOrientation(LinearLayout.VERTICAL);
             container.setGravity(Gravity.CENTER);
-            container.setPadding(16, 16, 16, 16);
+            container.setPadding(dp(10), dp(10), dp(10), dp(10));
             container.setBackgroundResource(R.drawable.image_item_background);
             container.setClickable(true);
             container.setFocusable(true);
 
             // Create image view
             ImageView imageView = new ImageView(this);
-            LinearLayout.LayoutParams imageParams = new LinearLayout.LayoutParams(
-                    itemWidth - 64, // Account for container padding
-                    itemWidth - 64
+            LinearLayout.LayoutParams iLp = new LinearLayout.LayoutParams(
+                    itemWidth - dp(28),   // same sizing as Admin
+                    itemWidth - dp(28)
             );
-            imageView.setLayoutParams(imageParams);
+            imageView.setLayoutParams(iLp);
             imageView.setScaleType(ImageView.ScaleType.CENTER_CROP);
 
             // Load image with Glide

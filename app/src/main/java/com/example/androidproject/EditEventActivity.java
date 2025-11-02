@@ -195,15 +195,48 @@ public class EditEventActivity extends AppCompatActivity {
                         }
 
                         // Load imageName -> set preview
-                        String imageName = (String) data.get("imageName");
-                        if (imageName != null && !imageName.isEmpty()) {
-                            Integer resId = resolveResForName(imageName);
+                        String rawImage = firstNonEmpty(
+                                (String) data.get("imageName"),   // preferred
+                                (String) data.get("imageResKey")
+                        );
+
+// If nothing found, just apply default UI and return
+                        if (rawImage == null) {
+                            applySelectedImageUI();
+                        } else {
+                            // Try resolve against your built-in catalog labels
+                            Integer resId = resolveResForName(rawImage);
                             if (resId != null && resId != 0) {
-                                selectedImageName = imageName;
+                                // Found a drawable in the catalog → preview it
+                                selectedImageName = rawImage;
                                 selectedImageResId = resId;
+                                applySelectedImageUI();
+                            } else if (rawImage.startsWith("http://") || rawImage.startsWith("https://")) {
+                                // It's a URL (e.g., Cloudinary) → load via Glide
+                                selectedImageName = rawImage;
+                                selectedImageResId = 0;
+                                Glide.with(this).load(rawImage).into(selectedImageView);
+                                selectedImageView.setVisibility(ImageView.VISIBLE);
+                                if (tvTapHint != null) tvTapHint.setVisibility(TextView.GONE);
+                            } else {
+                                // Not a catalog label and not a URL → hide preview gracefully
+                                selectedImageName = null;
+                                selectedImageResId = 0;
+                                selectedImageView.setVisibility(ImageView.GONE);
+                                if (tvTapHint != null) tvTapHint.setVisibility(TextView.VISIBLE);
+                            }
+
+                            boolean hasImageName = data.containsKey("imageName")
+                                    && data.get("imageName") != null
+                                    && !String.valueOf(data.get("imageName")).trim().isEmpty();
+                            if (!hasImageName) {
+                                db.collection("events")
+                                        .document(doc.getId())
+                                        .set(java.util.Collections.singletonMap("imageName", rawImage),
+                                                com.google.firebase.firestore.SetOptions.merge());
                             }
                         }
-                        applySelectedImageUI();
+
                     } else {
                         Toast.makeText(this, "Event not found", Toast.LENGTH_SHORT).show();
                     }
@@ -212,12 +245,27 @@ public class EditEventActivity extends AppCompatActivity {
                         Toast.makeText(this, "Error loading event: " + e.getMessage(), Toast.LENGTH_SHORT).show());
     }
 
+    private static String firstNonEmpty(String... vals) {
+        if (vals == null) return null;
+        for (String v : vals) {
+            if (v != null && !v.trim().isEmpty()) return v.trim();
+        }
+        return null;
+    }
+
     private Integer resolveResForName(String name) {
+        if (name == null) return 0;
+        String key = name.trim();
         for (int i = 0; i < IMAGE_NAMES.size(); i++) {
-            if (IMAGE_NAMES.get(i).equalsIgnoreCase(name)) {
+            if (IMAGE_NAMES.get(i).equalsIgnoreCase(key)) {
                 return IMAGE_RES_IDS.get(i);
             }
         }
+        // Bonus: if a drawable key was saved (e.g., "event_badminton"), try that too
+        try {
+            int id = getResources().getIdentifier(key, "drawable", getPackageName());
+            if (id != 0) return id;
+        } catch (Exception ignore) {}
         return 0;
     }
 
@@ -271,6 +319,7 @@ public class EditEventActivity extends AppCompatActivity {
         android.widget.ScrollView scroller = new android.widget.ScrollView(this);
         scroller.setFillViewport(true);
 
+        // Grid
         GridLayout grid = new GridLayout(this);
         grid.setUseDefaultMargins(false);
         grid.setAlignmentMode(GridLayout.ALIGN_BOUNDS);
@@ -278,19 +327,21 @@ public class EditEventActivity extends AppCompatActivity {
         int gridHPad = dp(8);
         grid.setPadding(gridHPad, dp(12), gridHPad, dp(12));
 
-        // width & columns
         DisplayMetrics dm = getResources().getDisplayMetrics();
         int screenW = dm.widthPixels;
         float density = dm.density;
-        int targetDialogW = Math.min((int) (screenW * 0.92f), dp(520));
-        int innerW = targetDialogW - (hPad * 2) - (gridHPad * 2);
-        int screenWdp = Math.round(screenW / density);
-        int cols = (screenWdp >= 380) ? 3 : 2;
+
+        int dialogSideInset = dp(24);
+
+        int outerHPad = dp(16);
+        int innerHPad = gridHPad;
+        int gap = dp(10);
+
+        int cols = (int)(screenW / density) >= 360 ? 3 : 2;
         grid.setColumnCount(cols);
 
-        int gap = dp(12);
-        int totalGaps = gap * (cols + 1);
-        int itemW = (innerW - totalGaps) / cols;
+        int usable = screenW - (2 * dialogSideInset) - (2 * outerHPad) - (2 * innerHPad);
+        int itemW = (usable - gap * (cols - 1)) / cols;
 
         for (int i = 0; i < IMAGE_NAMES.size(); i++) {
             String label = IMAGE_NAMES.get(i);
@@ -304,14 +355,12 @@ public class EditEventActivity extends AppCompatActivity {
             card.setLayoutParams(lp);
             card.setOrientation(LinearLayout.VERTICAL);
             card.setGravity(Gravity.CENTER);
-            card.setPadding(dp(12), dp(12), dp(12), dp(12));
-            card.setBackgroundResource(R.drawable.image_item_background);
+            card.setPadding(dp(10), dp(10), dp(10), dp(10));            card.setBackgroundResource(R.drawable.image_item_background);
             card.setClickable(true);
 
             ImageView iv = new ImageView(this);
             LinearLayout.LayoutParams ivLp =
-                    new LinearLayout.LayoutParams(itemW - dp(36), itemW - dp(36));
-            iv.setLayoutParams(ivLp);
+                    new LinearLayout.LayoutParams(itemW - dp(28), itemW - dp(28));            iv.setLayoutParams(ivLp);
             iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
             Glide.with(this).load(resId).into(iv);
 
@@ -356,7 +405,7 @@ public class EditEventActivity extends AppCompatActivity {
 
         Window w = dialog.getWindow();
         if (w != null) {
-            w.setLayout(targetDialogW, ViewGroup.LayoutParams.WRAP_CONTENT);
+            w.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         }
     }
 

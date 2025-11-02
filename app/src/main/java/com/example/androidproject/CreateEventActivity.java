@@ -45,11 +45,9 @@ public class CreateEventActivity extends AppCompatActivity {
     private Calendar startCalendar, endCalendar;
     private SimpleDateFormat dateTimeFormatter;
 
-    // Built-in image catalog
     private final ArrayList<String> IMAGE_NAMES = new ArrayList<>();
     private final ArrayList<Integer> IMAGE_RES_IDS = new ArrayList<>();
 
-    // Selection state
     private String selectedImageName = null;
     private int selectedImageResId = 0; // 0 = none chosen yet
 
@@ -209,27 +207,22 @@ public class CreateEventActivity extends AppCompatActivity {
         int gridHPad = dp(8);
         grid.setPadding(gridHPad, dp(12), gridHPad, dp(12));
 
-        // --- Sizing logic: dialog width & column count ---
         DisplayMetrics dm = getResources().getDisplayMetrics();
         int screenW = dm.widthPixels;
         float density = dm.density;
 
-        // Target dialog width (~92% screen, but cap at 520dp so it doesn’t get too wide on tablets)
-        int targetDialogW = Math.min((int) (screenW * 0.92f), dp(520));
+        int dialogSideInset = dp(24);
 
-        // Available inner width after root & grid padding
-        int innerW = targetDialogW - (hPad * 2) - (gridHPad * 2);
+        int outerHPad = hPad;          // same as above (dp 16)
+        int innerHPad = gridHPad;      // same as above (dp 8)
+        int gap = dp(10);
 
-        // Choose columns by dp width (2 for narrow phones, 3 for wider)
-        int screenWdp = Math.round(screenW / density);
-        int cols = (screenWdp >= 380) ? 3 : 2;   // <-- key change
+        int cols = (int) (screenW / density) >= 360 ? 3 : 2;
         grid.setColumnCount(cols);
 
-        int gap = dp(12);                        // spacing between cards
-        int totalGaps = gap * (cols + 1);        // left + between + right
-        int itemW = (innerW - totalGaps) / cols; // card width
+        int usable = screenW - (2 * dialogSideInset) - (2 * outerHPad) - (2 * innerHPad);
+        int itemW = (usable - gap * (cols - 1)) / cols;
 
-        // Build cells
         for (int i = 0; i < IMAGE_NAMES.size(); i++) {
             String label = IMAGE_NAMES.get(i);
             int resId = IMAGE_RES_IDS.get(i);
@@ -242,14 +235,12 @@ public class CreateEventActivity extends AppCompatActivity {
             card.setLayoutParams(lp);
             card.setOrientation(LinearLayout.VERTICAL);
             card.setGravity(Gravity.CENTER);
-            card.setPadding(dp(12), dp(12), dp(12), dp(12));
-            card.setBackgroundResource(R.drawable.image_item_background);
+            card.setPadding(dp(10), dp(10), dp(10), dp(10));            card.setBackgroundResource(R.drawable.image_item_background);
             card.setClickable(true);
 
             ImageView iv = new ImageView(this);
             LinearLayout.LayoutParams ivLp =
-                    new LinearLayout.LayoutParams(itemW - dp(36), itemW - dp(36));
-            iv.setLayoutParams(ivLp);
+                    new LinearLayout.LayoutParams(itemW - dp(28), itemW - dp(28));            iv.setLayoutParams(ivLp);
             iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
             Glide.with(this).load(resId).into(iv);
 
@@ -296,7 +287,7 @@ public class CreateEventActivity extends AppCompatActivity {
         // Apply the computed dialog width
         Window w = dialog.getWindow();
         if (w != null) {
-            w.setLayout(targetDialogW, ViewGroup.LayoutParams.WRAP_CONTENT);
+            w.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         }
     }
 
@@ -334,8 +325,8 @@ public class CreateEventActivity extends AppCompatActivity {
 
         int genderCode = 2; // 0=male,1=female,2=none
         int selectedId = genderGroup.getCheckedRadioButtonId();
-        if (selectedId == R.id.male) genderCode = 0;
-        else if (selectedId == R.id.female) genderCode = 1;
+        if (selectedId == R.id.male) genderCode = 1;
+        else if (selectedId == R.id.female) genderCode = 0;
         else genderCode = 2;
 
         String eventID = "E" + System.currentTimeMillis();
@@ -354,8 +345,8 @@ public class CreateEventActivity extends AppCompatActivity {
         // Only save image info if the user actually picked one
         if (selectedImageResId != 0) {
             String resKey = getResources().getResourceEntryName(selectedImageResId);
-            event.put("imageName", resKey);
-            event.put("imageLabel", selectedImageName);
+            event.put("imageName", selectedImageName);
+            event.put("imageResKey", resKey);
         }
 
 

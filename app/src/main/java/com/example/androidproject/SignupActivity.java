@@ -123,9 +123,7 @@ public class SignupActivity extends AppCompatActivity {
                             .addOnSuccessListener(unused -> toast("Verification email sent to " + email + ". Check inbox/spam."))
                             .addOnFailureListener(e -> toast("Failed to send verification email: " + e.getMessage()));
 
-                    // IMPORTANT: do NOT create Firestore doc yet.
-                    // Enforce verification first.
-                    // Keep data temporarily to finish activation later.
+
                     pendingEmail = email;
                     pendingPassword = password;
                     pendingName = name;
@@ -227,7 +225,6 @@ public class SignupActivity extends AppCompatActivity {
                 });
     }
 
-    /** Only after verified: create Firestore profile in 'user' collection only */
     private void createProfileThenFinish(FirebaseUser fbUser) {
         final String uid = fbUser.getUid();
         String generatedID = "U" + System.currentTimeMillis();
@@ -237,7 +234,7 @@ public class SignupActivity extends AppCompatActivity {
         userDoc.put("email", pendingEmail);
         userDoc.put("phoneNumber", pendingPhone);
         userDoc.put("description", pendingDesc);
-        userDoc.put("gender", pendingGender);   // 1=Male, 0=Female
+        userDoc.put("gender", pendingGender);
         userDoc.put("profilePic", null);
         userDoc.put("userID", generatedID);
 
