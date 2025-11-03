@@ -51,7 +51,7 @@ public class UserProfileActivity extends AppCompatActivity {
 
     // Local profile images
     private final List<Integer> LOCAL_PROFILE_IMAGES = Arrays.asList(
-            R.drawable.tofu,
+            R.drawable.default_pfp,
             R.drawable.profile1,
             R.drawable.profile2,
             R.drawable.profile3
@@ -251,14 +251,14 @@ public class UserProfileActivity extends AppCompatActivity {
         int imageResId = avatarResForKey(profileKey);
         Glide.with(this)
                 .load(imageResId)
-                .placeholder(R.drawable.tofu)
-                .error(R.drawable.tofu)
+                .placeholder(R.drawable.default_pfp)
+                .error(R.drawable.default_pfp)
                 .circleCrop()
                 .into(profilePic);
     }
 
     private int avatarResForKey(String key) {
-        if (key == null) return R.drawable.tofu; // default/fallback
+        if (key == null) return R.drawable.default_pfp;
         switch (key.toLowerCase()) {
             case "profile1": return R.drawable.profile1;
             case "profile2": return R.drawable.profile2;

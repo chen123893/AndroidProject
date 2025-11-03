@@ -12,17 +12,14 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 
-        <!-- Logo -->
-
         <!-- Title -->
-
         <ImageView
             android:id="@+id/signup_logo"
             android:layout_width="120dp"
             android:layout_height="120dp"
             android:layout_marginTop="16dp"
             android:contentDescription="@string/app_name"
-            android:src="@drawable/tofu"
+            android:src="@drawable/logo"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintHorizontal_bias="0.498"
             app:layout_constraintStart_toStartOf="parent"
