@@ -213,8 +213,8 @@ public class CreateEventActivity extends AppCompatActivity {
 
         int dialogSideInset = dp(24);
 
-        int outerHPad = hPad;          // same as above (dp 16)
-        int innerHPad = gridHPad;      // same as above (dp 8)
+        int outerHPad = hPad;
+        int innerHPad = gridHPad;
         int gap = dp(10);
 
         int cols = (int) (screenW / density) >= 360 ? 3 : 2;
@@ -299,7 +299,7 @@ public class CreateEventActivity extends AppCompatActivity {
             if (tvTapHint != null) tvTapHint.setVisibility(TextView.VISIBLE);
             return;
         }
-        // show only the image; hide hint (never show any name/path)
+        // show only the image
         Glide.with(this).load(selectedImageResId).into(selectedImageView);
         selectedImageView.setVisibility(ImageView.VISIBLE);
         if (tvTapHint != null) tvTapHint.setVisibility(TextView.GONE);
