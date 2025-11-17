@@ -58,7 +58,7 @@ public class MyEventsActivity extends AppCompatActivity {
     private void loadEvents() {
         String adminUid = FirebaseAuth.getInstance().getCurrentUser().getUid();
 
-        // ✅ Fetch adminID (e.g., "A001") first
+        // Fetch adminID (e.g., "A001") first
         db.collection("admin")
                 .document(adminUid)
                 .get()
@@ -108,7 +108,7 @@ public class MyEventsActivity extends AppCompatActivity {
                                                 startEnd.setText("Date/time not set");
                                             }
 
-                                            // 🧮 Count attendees dynamically from attendance collection
+                                            // Count attendees dynamically from attendance collection
                                             if (eventID != null) {
                                                 AggregateQuery countQuery = db.collection("attendance")
                                                         .whereEqualTo("eventID", eventID)
