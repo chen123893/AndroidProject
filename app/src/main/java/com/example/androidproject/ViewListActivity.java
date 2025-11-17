@@ -184,13 +184,13 @@ public class ViewListActivity extends AppCompatActivity {
     }
 
     private int avatarResForKey(String key) {
-        if (key == null) return R.drawable.tofu; // default
+        if (key == null) return R.drawable.default_pfp; // default
         switch (key.toLowerCase()) {
             case "profile1": return R.drawable.profile1;
             case "profile2": return R.drawable.profile2;
             case "profile3": return R.drawable.profile3;
             case "default":
-            default:         return R.drawable.tofu;
+            default:         return R.drawable.default_pfp;
         }
     }
 
