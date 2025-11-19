@@ -591,7 +591,7 @@ public class UserExploreActivity extends AppCompatActivity {
         private void joinEvent(Event event, Button joinButton) {
             String firebaseUid = mAuth.getCurrentUser().getUid();
 
-            // Step 1: Get user’s custom ID (Uxxxx)
+            // Get user’s custom ID (Uxxxx)
             db.collection("user").document(firebaseUid)
                     .get()
                     .addOnSuccessListener(userDoc -> {

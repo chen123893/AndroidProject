@@ -345,7 +345,7 @@ public class CreateEventActivity extends AppCompatActivity {
         // Only save image info if the user actually picked one
         if (selectedImageResId != 0) {
             String resKey = getResources().getResourceEntryName(selectedImageResId);
-            event.put("imageName", selectedImageName);
+            event.put("imageName", resKey);
             event.put("imageResKey", resKey);
         }
 
