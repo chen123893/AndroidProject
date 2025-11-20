@@ -264,7 +264,7 @@ public class UserProfileActivity extends AppCompatActivity {
             case "profile2": return R.drawable.profile2;
             case "profile3": return R.drawable.profile3;
             case "default":
-            default:         return R.drawable.tofu;
+            default:         return R.drawable.default_pfp;
         }
     }
 

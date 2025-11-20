@@ -95,7 +95,7 @@ public class LoginActivity extends AppCompatActivity {
 
         builder.setView(inputLayout);
 
-        builder.setPositiveButton("Send Reset Link", null); // We'll override this
+        builder.setPositiveButton("Send Reset Link", null);
         builder.setNegativeButton("Cancel", (dialog, which) -> dialog.cancel());
 
         AlertDialog dialog = builder.create();
@@ -152,21 +152,16 @@ public class LoginActivity extends AppCompatActivity {
     private void handleResetError(Exception exception) {
         String errorMessage = "Failed to send reset email. Please try again.";
 
-        if (exception != null) {
-            String exceptionMessage = exception.getMessage();
-            if (exception instanceof FirebaseAuthInvalidUserException) {
-                errorMessage = "No account found with this email address. Please check your email or sign up for a new account.";
-            } else if (exceptionMessage != null && exceptionMessage.toLowerCase().contains("network")) {
-                errorMessage = "Network error. Please check your internet connection and try again.";
-            } else if (exceptionMessage != null && exceptionMessage.contains("invalid-email")) {
-                errorMessage = "Invalid email address format. Please check your email and try again.";
-            } else if (exception.getCause() instanceof UnknownHostException) {
-                errorMessage = "No internet connection. Please check your network and try again.";
-            } else {
-                errorMessage = "Error: " + exceptionMessage;
-            }
+        if (exception instanceof FirebaseAuthInvalidUserException) {
+            errorMessage = "No account found with this email.";
+        } else if (exception != null &&
+                (exception.getCause() instanceof UnknownHostException ||
+                        exception.getMessage() != null &&
+                                exception.getMessage().toLowerCase().contains("network"))) {
+            errorMessage = "Network error. Please check your connection.";
         }
 
+        //Use the AlertDialog code directly
         new AlertDialog.Builder(this)
                 .setTitle("Reset Failed")
                 .setMessage(errorMessage)
@@ -243,6 +238,7 @@ public class LoginActivity extends AppCompatActivity {
     }
 
     private void checkUserRole(String uid) {
+        // log.d=debug log.e=error
         Log.d("LoginDebug", "Checking role for UID: " + uid);
 
         // Check Admin collection first
@@ -251,6 +247,7 @@ public class LoginActivity extends AppCompatActivity {
                     if (adminDoc.exists()) {
                         Log.d("LoginDebug", "Admin document found, redirecting to AdminProfileActivity");
                         Intent intent = new Intent(LoginActivity.this, AdminProfileActivity.class);
+                        // destroy login page and set the directed page as a new root
                         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
                         startActivity(intent);
                         finish();
@@ -261,7 +258,7 @@ public class LoginActivity extends AppCompatActivity {
                                 .addOnSuccessListener(userDoc -> {
                                     if (userDoc.exists()) {
                                         Log.d("LoginDebug", "User document found, redirecting to UserExploreActivity");
-                                        // ✅ User detected -> Go to UserExploreActivity
+                                        // User detected -> Go to UserExploreActivity
                                         Intent intent = new Intent(LoginActivity.this, UserExploreActivity.class);
                                         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
                                         startActivity(intent);

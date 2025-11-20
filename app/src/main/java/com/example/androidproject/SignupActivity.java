@@ -65,7 +65,7 @@ public class SignupActivity extends AppCompatActivity {
         progressBar = findViewById(R.id.progress_signup);
         tvAlreadyAccount = findViewById(R.id.tv_already_account);
 
-        // Optional: trim spaces in email/phone inputs
+        //trim spaces in email/phone inputs
         etEmail.setFilters(new InputFilter[]{(s, a, b, d, e, f) -> s != null ? s.toString().replace(" ", "") : null});
         etPhoneNum.setFilters(new InputFilter[]{(s, a, b, d, e, f) -> s != null ? s.toString().replace(" ", "") : null});
 
@@ -100,6 +100,7 @@ public class SignupActivity extends AppCompatActivity {
         // Create Auth user
         mAuth.createUserWithEmailAndPassword(email, password)
                 .addOnCompleteListener(this, task -> {
+                    //if create fail
                     if (!task.isSuccessful()) {
                         setLoading(false);
                         toast(task.getException() != null ? task.getException().getMessage() : "Registration failed");
@@ -123,7 +124,7 @@ public class SignupActivity extends AppCompatActivity {
                             .addOnSuccessListener(unused -> toast("Verification email sent to " + email + ". Check inbox/spam."))
                             .addOnFailureListener(e -> toast("Failed to send verification email: " + e.getMessage()));
 
-
+                    //Store pending data
                     pendingEmail = email;
                     pendingPassword = password;
                     pendingName = name;
