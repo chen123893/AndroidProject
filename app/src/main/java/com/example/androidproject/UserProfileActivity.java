@@ -62,10 +62,7 @@ public class UserProfileActivity extends AppCompatActivity {
     );
 
     private final List<String> IMAGE_NAMES = Arrays.asList(
-            "Default",
-            "Professional",
-            "Casual",
-            "Creative"
+            "Default", "Professional", "Casual", "Creative"
     );
 
     @Override
@@ -281,11 +278,6 @@ public class UserProfileActivity extends AppCompatActivity {
 
 
 
-    private int getImageResource(String imageName) {
-        int index = IMAGE_NAMES.indexOf(imageName);
-        return index >= 0 ? LOCAL_PROFILE_IMAGES.get(index) : R.drawable.profile1;
-    }
-
     private void createDefaultProfile() {
         FirebaseUser currentUser = mAuth.getCurrentUser();
         if (currentUser == null) return;
@@ -372,12 +364,13 @@ public class UserProfileActivity extends AppCompatActivity {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Choose Profile Picture");
 
+        //arrange images in rows and columns
         GridLayout gridLayout = new GridLayout(this);
         gridLayout.setUseDefaultMargins(false);
         gridLayout.setAlignmentMode(GridLayout.ALIGN_BOUNDS);
-        gridLayout.setPadding(dp(16), dp(16), dp(16), dp(16)); // smaller outer padding
+        gridLayout.setPadding(dp(16), dp(16), dp(16), dp(16)); // outer padding
 
-        // Screen info
+        // Screen info, calculate the column
         DisplayMetrics dm = new DisplayMetrics();
         getWindowManager().getDefaultDisplay().getMetrics(dm);
         int screenWidth = dm.widthPixels;
@@ -385,8 +378,10 @@ public class UserProfileActivity extends AppCompatActivity {
         int dialogSideInset = dp(24);
         int outerPad = dp(16);
         int gap = dp(10);
+        //3 column if screenwidth >=360density pixel
         int cols = (int) (screenWidth / density) >= 360 ? 3 : 2;
         gridLayout.setColumnCount(cols);
+        //calculate available space (total usable width - total gaps) / number of columns)
         int usable = screenWidth - (2 * dialogSideInset) - (2 * outerPad);
         int itemWidth = (usable - gap * (cols - 1)) / cols;
 
@@ -413,7 +408,7 @@ public class UserProfileActivity extends AppCompatActivity {
             // Create image view
             ImageView imageView = new ImageView(this);
             LinearLayout.LayoutParams iLp = new LinearLayout.LayoutParams(
-                    itemWidth - dp(28),   // same sizing as Admin
+                    itemWidth - dp(28),
                     itemWidth - dp(28)
             );
             imageView.setLayoutParams(iLp);

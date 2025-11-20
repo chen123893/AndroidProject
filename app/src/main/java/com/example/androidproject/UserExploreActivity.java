@@ -100,17 +100,6 @@ public class UserExploreActivity extends AppCompatActivity {
         });
     }
 
-    private void toggleAIRecommendations() {
-        if (showingAIRecommendations) {
-            loadAllEvents();
-            btnAIRecommendations.setText("Get AI Recommendations");
-            btnAIRecommendations.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.colorPrimary));
-            showingAIRecommendations = false;
-            Toast.makeText(this, "Showing all events", Toast.LENGTH_SHORT).show();
-        } else {
-            getAIRecommendations();
-        }
-    }
 
     private AlertDialog loadingDialog;
 
@@ -399,7 +388,7 @@ public class UserExploreActivity extends AppCompatActivity {
     // ---------------------- EVENT MODEL -----------------------
     public static class Event {
         private String id;
-        private String eventID; // Your custom eventID field
+        private String eventID;
         private String adminID;
         private String description;
         private String endDateTime;

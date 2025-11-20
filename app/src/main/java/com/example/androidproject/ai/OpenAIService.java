@@ -23,7 +23,7 @@ public class OpenAIService {
     private static final String TAG = "OpenAIService";
     private static final String OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
 
-    // ✅ Load from BuildConfig (already verified)
+    // Load from BuildConfig (already verified)
     private static final String API_KEY = BuildConfig.OPENAI_API_KEY;
 
     private final OkHttpClient client;
