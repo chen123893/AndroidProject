@@ -33,7 +33,7 @@ public class ExploreDetailsActivity extends AppCompatActivity {
         tvCapacity     = findViewById(R.id.tv_event_capacity);
 
         // --- Setup Bottom Nav ---
-        setupBottomNavigation();  // ✅ MUST be called here
+        setupBottomNavigation();
 
         // --- Get Data from Intent ---
         String eventName       = getIntent().getStringExtra("eventName");
@@ -57,6 +57,7 @@ public class ExploreDetailsActivity extends AppCompatActivity {
         // --- Load Local Drawable Image by Name ---
         int resId = 0;
         if (imageName != null && !imageName.trim().isEmpty()) {
+            //replace everything to underscore
             String safeName = imageName.toLowerCase().replaceAll("[^a-z0-9_]+", "_");
             resId = getResources().getIdentifier(safeName, "drawable", getPackageName());
         }

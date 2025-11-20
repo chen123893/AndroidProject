@@ -110,12 +110,16 @@ public class UserTimetableActivity extends AppCompatActivity {
     }
 
     private void showDatePicker(boolean isStartDate) {
+        // Determine which calendar to use based on whether this is for start or end date
         Calendar currentCalendar = isStartDate ? startCalendar : endCalendar;
 
+        // Create date picker dialog with current date pre-selected
         DatePickerDialog datePickerDialog = new DatePickerDialog(
                 this,
                 (view, year, month, dayOfMonth) -> {
+                    // Update the calendar when user selects a date
                     currentCalendar.set(year, month, dayOfMonth);
+                    // Refresh the date display in UI
                     updateDateDisplay(isStartDate);
                 },
                 currentCalendar.get(Calendar.YEAR),
@@ -123,6 +127,7 @@ public class UserTimetableActivity extends AppCompatActivity {
                 currentCalendar.get(Calendar.DAY_OF_MONTH)
         );
 
+        // Show the date picker dialog to user (build in)
         datePickerDialog.show();
     }
 
@@ -174,7 +179,7 @@ public class UserTimetableActivity extends AppCompatActivity {
             String raw = event.getStartDateTime();
             if (raw == null || raw.trim().isEmpty()) return false;
 
-            // Parse the full "dd MMM yyyy, hh:mm a" string
+            // Parse the full "dd MMM yyyy, hh:mm a"
             Date startDt = EVENT_DATETIME_FMT.parse(raw);
             if (startDt == null) return false;
 
@@ -223,7 +228,7 @@ public class UserTimetableActivity extends AppCompatActivity {
         joinedEventsList.clear();
         filteredEventsList.clear();
 
-        // Step 1️⃣ - get custom userID (Uxxxx)
+        // step1 - get custom userID (Uxxxx)
         db.collection("user").document(firebaseUid).get()
                 .addOnSuccessListener(userDoc -> {
                     if (!userDoc.exists()) {
@@ -239,7 +244,7 @@ public class UserTimetableActivity extends AppCompatActivity {
                         return;
                     }
 
-                    // Step 2️⃣ - find all events the user joined
+                    // Step 2️2 - find all events the user joined
                     db.collection("attendance")
                             .whereEqualTo("userID", customUserID)
                             .get()
@@ -258,7 +263,7 @@ public class UserTimetableActivity extends AppCompatActivity {
                                     if (eventCustomID != null && !seenEvents.containsKey(eventCustomID)) {
                                         seenEvents.put(eventCustomID, true);
 
-                                        // Step 3️⃣ - fetch event details
+                                        // Step 3 - fetch event details
                                         db.collection("events")
                                                 .whereEqualTo("eventID", eventCustomID)
                                                 .get()
@@ -267,7 +272,7 @@ public class UserTimetableActivity extends AppCompatActivity {
                                                         Event event = parseEventFromDocument(eventDoc);
                                                         if (event != null) {
 
-                                                            // ✅ Step 4️⃣ - fetch live attendee count
+                                                            // Step 44⃣ - fetch live attendee count
                                                             db.collection("attendance")
                                                                     .whereEqualTo("eventID", event.getEventID())
                                                                     .get()
@@ -347,7 +352,7 @@ public class UserTimetableActivity extends AppCompatActivity {
         }
     }
 
-    // Event Model (same as before)
+    // Event Model
     public static class Event {
         private String id;
         private String eventID;
@@ -398,7 +403,7 @@ public class UserTimetableActivity extends AppCompatActivity {
         public void setPax(int pax) { this.pax = pax; }
     }
 
-    // Adapter for Timetable (same as before, but with updated position handling)
+    // Adapter for Timetable
     private class TimetableEventAdapter extends RecyclerView.Adapter<TimetableEventAdapter.EventViewHolder> {
 
         private final ArrayList<Event> events;
@@ -463,7 +468,7 @@ public class UserTimetableActivity extends AppCompatActivity {
         private void leaveEvent(Event event, int position) {
             String firebaseUid = mAuth.getCurrentUser().getUid();
 
-            // Step 1️⃣ Get the user's custom userID first
+            // Step 1 - Get the user's custom userID first
             db.collection("user").document(firebaseUid).get()
                     .addOnSuccessListener(userDoc -> {
                         if (!userDoc.exists()) {
@@ -477,7 +482,7 @@ public class UserTimetableActivity extends AppCompatActivity {
                             return;
                         }
 
-                        // Step 2️⃣ Match by eventID (E001 etc.) and customUserID (U001)
+                        // Match by eventID (E001 etc.) and customUserID (U001)
                         db.collection("attendance")
                                 .whereEqualTo("eventID", event.getEventID())
                                 .whereEqualTo("userID", customUserID)
@@ -488,7 +493,7 @@ public class UserTimetableActivity extends AppCompatActivity {
                                                 .addOnSuccessListener(aVoid -> {
                                                     Toast.makeText(UserTimetableActivity.this, "Left event successfully!", Toast.LENGTH_SHORT).show();
 
-                                                    // Step 3️⃣ Update attendee count
+                                                    // Update attendee count
                                                     db.collection("events")
                                                             .whereEqualTo("eventID", event.getEventID())
                                                             .get()

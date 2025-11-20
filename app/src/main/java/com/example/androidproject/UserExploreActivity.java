@@ -1,7 +1,6 @@
 package com.example.androidproject;
 
-
-import android.app.ProgressDialog;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.os.Bundle;
 import android.text.TextUtils;
@@ -13,7 +12,6 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
-import android.app.AlertDialog;
 import android.widget.ProgressBar;
 
 import androidx.annotation.NonNull;
@@ -34,80 +32,110 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**Main activity for users to explore and browse events*/
 public class UserExploreActivity extends AppCompatActivity {
 
+    // UI components
     private EditText searchInput;
     private Button btnSearch, btnAIRecommendations;
     private RecyclerView recyclerView;
+
     private FirebaseFirestore db;
     private FirebaseAuth mAuth;
+
+    // Data management
     private ArrayList<Event> eventList;
     private EventAdapter adapter;
     private int currentUserGender = -1; // -1 = not loaded, 0 = female, 1 = male
     private String userDescription = "";
+
+    // AI functionality
     private AIRecommendationManager aiRecommendationManager;
     private boolean showingAIRecommendations = false;
-    private ProgressDialog progressDialog;
 
+    // Loading dialog
+    private AlertDialog loadingDialog;
+
+    /**Initialize activity and set up main components*/
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_user_explore);
 
-        Log.d("UserExplore", "Activity created");
-
-        // Initialize Firebase
+        // Initialize Firebase services
         db = FirebaseFirestore.getInstance();
         mAuth = FirebaseAuth.getInstance();
-
-        // Initialize AI Recommendation Manager
         aiRecommendationManager = new AIRecommendationManager(this);
 
-        // Initialize views
+        // Set up UI components
+        initializeViews();
+        setupRecyclerView();
+        setupBottomNavigation();
+
+        // Load user data and events
+        loadCurrentUserProfile();
+
+        // Set up button click listeners
+        btnSearch.setOnClickListener(v -> searchEvents());
+        btnAIRecommendations.setOnClickListener(v -> toggleAIRecommendations());
+    }
+
+    /**Initialize all UI views by finding them from layout*/
+    private void initializeViews() {
         searchInput = findViewById(R.id.search_input);
         btnSearch = findViewById(R.id.btn_search);
         btnAIRecommendations = findViewById(R.id.btn_ai_recommendations);
         recyclerView = findViewById(R.id.recycler_events);
+    }
 
-        // Setup RecyclerView
+    /**Set up RecyclerView with layout manager and adapter*/
+    private void setupRecyclerView() {
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         eventList = new ArrayList<>();
         adapter = new EventAdapter(eventList);
         recyclerView.setAdapter(adapter);
+    }
 
-        // Setup bottom navigation
-        setupBottomNavigation();
+    private void setupBottomNavigation() {
+        BottomNavigationView bottomNav = findViewById(R.id.bottom_navigation);
+        bottomNav.setSelectedItemId(R.id.nav_explore);
 
-        // Load current user's gender and description first, then load events
-        loadCurrentUserProfile();
-
-        // Search button listener
-        btnSearch.setOnClickListener(v -> searchEvents());
-
-        // AI Recommendations button listener
-        btnAIRecommendations.setOnClickListener(v -> {
-            if (showingAIRecommendations) {
-                // If already showing AI recommendations, switch back to all events
-                loadAllEvents();
-                btnAIRecommendations.setText("✨ Get AI Recommendations");
-                btnAIRecommendations.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.colorPrimary));
-                showingAIRecommendations = false;
-                Toast.makeText(this, "Showing all events", Toast.LENGTH_SHORT).show();
-            } else {
-                // Get AI recommendations
-                getAIRecommendations();
+        bottomNav.setOnItemSelectedListener(item -> {
+            int id = item.getItemId();
+            if (id == R.id.nav_explore) {
+                return true;
+            } else if (id == R.id.nav_timetable) {
+                startActivity(new Intent(this, UserTimetableActivity.class));
+                overridePendingTransition(0, 0);
+                finish();
+            } else if (id == R.id.nav_profile) {
+                startActivity(new Intent(this, UserProfileActivity.class));
+                overridePendingTransition(0, 0);
+                finish();
             }
+            return false;
         });
     }
 
+    /**Toggle between AI recommendations and all events*/
+    private void toggleAIRecommendations() {
+        if (showingAIRecommendations) {
+            // Switch back to all events
+            loadAllEvents();
+            btnAIRecommendations.setText("✨ Get AI Recommendations");
+            btnAIRecommendations.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.colorPrimary));
+            showingAIRecommendations = false;
+        } else {
+            // Get AI recommendations
+            getAIRecommendations();
+        }
+    }
 
-    private AlertDialog loadingDialog;
 
     private void showLoading(String message) {
         if (loadingDialog != null && loadingDialog.isShowing()) return;
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        View view = LayoutInflater.from(this).inflate(android.R.layout.simple_list_item_1, null);
         ProgressBar progressBar = new ProgressBar(this);
         progressBar.setIndeterminate(true);
 
@@ -119,126 +147,87 @@ public class UserExploreActivity extends AppCompatActivity {
         loadingDialog.show();
     }
 
+
     private void hideLoading() {
         if (loadingDialog != null && loadingDialog.isShowing()) {
             loadingDialog.dismiss();
         }
     }
 
-
-    private void setupBottomNavigation() {
-        BottomNavigationView bottomNav = findViewById(R.id.bottom_navigation);
-        bottomNav.setSelectedItemId(R.id.nav_explore);
-
-        bottomNav.setOnItemSelectedListener(item -> {
-            int id = item.getItemId();
-            if (id == R.id.nav_explore) {
-                return true;
-            } else if (id == R.id.nav_timetable) {
-                startActivity(new Intent(UserExploreActivity.this, UserTimetableActivity.class));
-                overridePendingTransition(0, 0);
-                finish();
-            } else if (id == R.id.nav_profile) {
-                startActivity(new Intent(UserExploreActivity.this, UserProfileActivity.class));
-                overridePendingTransition(0, 0);
-                finish();
-                return true;
-            }
-            return false;
-        });
-    }
-
     private void loadCurrentUserProfile() {
         String userId = mAuth.getCurrentUser().getUid();
-        Log.d("UserExplore", "Loading profile for user: " + userId);
 
         db.collection("user").document(userId).get()
                 .addOnSuccessListener(doc -> {
                     if (doc.exists()) {
+                        // Extract user gender
                         Long gender = doc.getLong("gender");
                         currentUserGender = (gender != null) ? gender.intValue() : -1;
 
-                        // Get user description for AI recommendations
+                        // Extract user description for AI recommendations
                         userDescription = doc.getString("description");
-                        if (userDescription == null) {
-                            userDescription = "";
-                        }
+                        if (userDescription == null) userDescription = "";
 
-                        Log.d("UserExplore", "User profile loaded. Gender: " + currentUserGender + ", Description: " + userDescription);
-
-                        // Enable AI button if user has description
-                        if (!TextUtils.isEmpty(userDescription)) {
-                            btnAIRecommendations.setEnabled(true);
-                            btnAIRecommendations.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.colorPrimary));
-                        } else {
-                            btnAIRecommendations.setEnabled(false);
-                            btnAIRecommendations.setBackgroundTintList(ContextCompat.getColorStateList(this, android.R.color.darker_gray));
-                            btnAIRecommendations.setText("No user description for AI");
-                        }
-
-                        // Now load events after profile is retrieved
+                        // Update AI button state based on description availability
+                        updateAIButtonState();
                         loadAllEvents();
                     } else {
-                        Log.e("UserExplore", "User profile not found in Firestore");
-                        Toast.makeText(this, "User profile not found", Toast.LENGTH_SHORT).show();
-                        loadAllEvents(); // Load anyway
+                        loadAllEvents();
                     }
                 })
                 .addOnFailureListener(e -> {
-                    Log.e("UserExplore", "Failed to load user profile: " + e.getMessage());
                     Toast.makeText(this, "Failed to load user profile", Toast.LENGTH_SHORT).show();
-                    loadAllEvents(); // Load anyway
+                    loadAllEvents(); // Load events even if profile fails
                 });
     }
 
-    private void loadAllEvents() {
-        Log.d("UserExplore", "Loading all events");
+    /**Enable or disable AI recommendations button based on user description availability*/
+    private void updateAIButtonState() {
+        if (!TextUtils.isEmpty(userDescription)) {
+            // User has description - enable AI button
+            btnAIRecommendations.setEnabled(true);
+            btnAIRecommendations.setBackgroundTintList(ContextCompat.getColorStateList(this, R.color.colorPrimary));
+        } else {
+            // No description - disable AI button
+            btnAIRecommendations.setEnabled(false);
+            btnAIRecommendations.setBackgroundTintList(ContextCompat.getColorStateList(this, android.R.color.darker_gray));
+            btnAIRecommendations.setText("No user description for AI");
+        }
+    }
 
+    /**Load all events from Firestore and display them*/
+    private void loadAllEvents() {
         db.collection("events").get()
                 .addOnSuccessListener(querySnapshot -> {
-                    Log.d("UserExplore", "Events loaded: " + querySnapshot.size());
                     eventList.clear();
-
                     for (QueryDocumentSnapshot doc : querySnapshot) {
-                        try {
-                            Event event = parseEventFromDocument(doc);
-
-                            if (event != null && shouldShowEvent(event)) {
-                                // Temporarily add with default count = 0
-                                event.setCurrentAttendees(0);
-                                eventList.add(event);
-
-                                // 🔹 Fetch live attendee count from attendance
-                                db.collection("attendance")
-                                        .whereEqualTo("eventID", event.getEventID()) // use Exxxx ID
-                                        .get()
-                                        .addOnSuccessListener(snapshot -> {
-                                            int liveCount = snapshot.size();
-                                            event.setCurrentAttendees(liveCount);
-                                            adapter.notifyDataSetChanged(); // update UI
-                                        })
-                                        .addOnFailureListener(e ->
-                                                Log.e("UserExplore", "Failed to fetch live count: " + e.getMessage()));
-                            }
-                        } catch (Exception e) {
-                            Log.e("UserExplore", "Error parsing event: " + e.getMessage());
+                        Event event = parseEventFromDocument(doc);
+                        if (event != null && shouldShowEvent(event)) {
+                            // Initialize with 0 attendees, then fetch actual count
+                            event.setCurrentAttendees(0);
+                            eventList.add(event);
+                            fetchLiveAttendeeCount(event);
                         }
                     }
-
                     adapter.notifyDataSetChanged();
-                    Log.d("UserExplore", "Events displayed: " + eventList.size());
-
-                    if (eventList.isEmpty()) {
-                        Toast.makeText(UserExploreActivity.this, "No events found", Toast.LENGTH_SHORT).show();
-                    }
                 })
                 .addOnFailureListener(e -> {
-                    Log.e("UserExplore", "Failed to load events: " + e.getMessage());
-                    Toast.makeText(this, "Failed to load events: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "Failed to load events", Toast.LENGTH_SHORT).show();
                 });
     }
 
+    /**Fetch real-time attendee count for a specific event from attendance collection*/
+    private void fetchLiveAttendeeCount(Event event) {
+        db.collection("attendance")
+                .whereEqualTo("eventID", event.getEventID())
+                .get()
+                .addOnSuccessListener(snapshot -> {
+                    event.setCurrentAttendees(snapshot.size());
+                    adapter.notifyDataSetChanged();
+                });
+    }
 
+    /**Get AI-powered personalized event recommendations*/
     private void getAIRecommendations() {
         if (TextUtils.isEmpty(userDescription)) {
             Toast.makeText(this, "No user description found for AI recommendations", Toast.LENGTH_SHORT).show();
@@ -258,19 +247,16 @@ public class UserExploreActivity extends AppCompatActivity {
                     btnAIRecommendations.setText("Show All Events");
                     btnAIRecommendations.setBackgroundTintList(ContextCompat.getColorStateList(UserExploreActivity.this, R.color.green));
 
+                    // Update event list with AI recommendations
                     eventList.clear();
                     eventList.addAll(recommendedEvents);
                     adapter.notifyDataSetChanged();
 
                     if (recommendedEvents.isEmpty()) {
-                        Toast.makeText(UserExploreActivity.this,
-                                "No specific recommendations found. Showing all events.",
-                                Toast.LENGTH_LONG).show();
-                        loadAllEvents();
+                        Toast.makeText(UserExploreActivity.this, "No specific recommendations found", Toast.LENGTH_LONG).show();
+                        loadAllEvents(); // Fallback to all events
                     } else {
-                        Toast.makeText(UserExploreActivity.this,
-                                "AI found " + recommendedEvents.size() + " personalized recommendations!",
-                                Toast.LENGTH_SHORT).show();
+                        Toast.makeText(UserExploreActivity.this, "AI found " + recommendedEvents.size() + " recommendations!", Toast.LENGTH_SHORT).show();
                     }
                 });
             }
@@ -280,20 +266,19 @@ public class UserExploreActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     hideLoading();
                     btnAIRecommendations.setEnabled(true);
-                    btnAIRecommendations.setText("Get AI Recommendations");
                     showingAIRecommendations = false;
-                    Toast.makeText(UserExploreActivity.this,
-                            "AI recommendations unavailable. Showing all events.",
-                            Toast.LENGTH_SHORT).show();
-                    loadAllEvents();
+                    Toast.makeText(UserExploreActivity.this, "AI recommendations unavailable", Toast.LENGTH_SHORT).show();
+                    loadAllEvents(); // Fallback to all events
                 });
             }
         });
     }
 
+    //return event object
     private Event parseEventFromDocument(QueryDocumentSnapshot doc) {
         Event event = new Event();
         try {
+            // Set basic event properties
             event.setId(doc.getId());
             event.setEventID(doc.getString("eventID"));
             event.setAdminID(doc.getString("adminID"));
@@ -303,15 +288,11 @@ public class UserExploreActivity extends AppCompatActivity {
             event.setStartDateTime(doc.getString("startDateTime"));
             event.setVenue(doc.getString("venue"));
             event.setImageName(doc.getString("imageName"));
-            // Handle genderSpec
-            Long genderSpec = doc.getLong("genderSpec");
-            if (genderSpec != null) {
-                event.setGenderSpec(genderSpec.intValue());
-            } else {
-                event.setGenderSpec(2); // Default to "None"
-            }
 
-            // Handle numeric fields
+            // Handle numeric fields with null checks
+            Long genderSpec = doc.getLong("genderSpec");
+            event.setGenderSpec(genderSpec != null ? genderSpec.intValue() : 2); // Default to "Any"
+
             Long currentAttendees = doc.getLong("currentAttendees");
             event.setCurrentAttendees(currentAttendees != null ? currentAttendees.intValue() : 0);
 
@@ -320,72 +301,65 @@ public class UserExploreActivity extends AppCompatActivity {
 
             return event;
         } catch (Exception e) {
-            Log.e("UserExplore", "Error in event parsing: " + e.getMessage());
+            Log.e("UserExplore", "Error parsing event document: " + e.getMessage());
             return null;
         }
     }
 
-
+    /** Check if event should be shown based on gender restrictions*/
     private boolean shouldShowEvent(Event event) {
-        // If genderSpec is 2 (None/Any), show to everyone
-        if (event.getGenderSpec() == 2) {
+        // Show event if: no gender restriction OR user gender not loaded OR gender matches
+        if (event.getGenderSpec() == 2 || currentUserGender == -1) {
             return true;
         }
-
-        // If user gender not loaded, show all events
-        if (currentUserGender == -1) {
-            return true;
-        }
-
-        // Check if event matches user's gender
-        // genderSpec: 0 = Male, 1 = Female, 2 = Any/None
         return event.getGenderSpec() == currentUserGender;
     }
 
+    /**Search events based on keyword in event name, venue, or description*/
     private void searchEvents() {
         String keyword = searchInput.getText().toString().trim().toLowerCase();
         if (TextUtils.isEmpty(keyword)) {
-            loadAllEvents();
+            loadAllEvents(); // Show all events if search is empty
             return;
         }
 
-        Log.d("UserExplore", "Searching events with keyword: " + keyword);
-
         db.collection("events").get()
                 .addOnSuccessListener(querySnapshot -> {
-                    Log.d("UserExplore", "Search results: " + querySnapshot.size());
                     eventList.clear();
                     for (QueryDocumentSnapshot doc : querySnapshot) {
-                        try {
-                            Event event = parseEventFromDocument(doc);
-                            if (event != null) {
-                                // Check if event matches search keyword and gender filter
-                                boolean matchesSearch = (event.getEventName() != null && event.getEventName().toLowerCase().contains(keyword)) ||
-                                        (event.getVenue() != null && event.getVenue().toLowerCase().contains(keyword)) ||
-                                        (event.getDescription() != null && event.getDescription().toLowerCase().contains(keyword));
-
-                                if (matchesSearch && shouldShowEvent(event)) {
-                                    eventList.add(event);
-                                }
-                            }
-                        } catch (Exception e) {
-                            Log.e("UserExplore", "Error parsing event in search: " + e.getMessage());
+                        Event event = parseEventFromDocument(doc);
+                        if (event != null && shouldShowEvent(event) && matchesSearch(event, keyword)) {
+                            eventList.add(event);
                         }
                     }
                     adapter.notifyDataSetChanged();
-                    Log.d("UserExplore", "Search events displayed: " + eventList.size());
 
                     if (eventList.isEmpty()) {
-                        Toast.makeText(UserExploreActivity.this, "No events found for: " + keyword, Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, "No events found for: " + keyword, Toast.LENGTH_SHORT).show();
                     }
                 })
                 .addOnFailureListener(e -> {
-                    Log.e("UserExplore", "Search failed: " + e.getMessage());
-                    Toast.makeText(this, "Search failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "Search failed", Toast.LENGTH_SHORT).show();
                 });
     }
 
-    // ---------------------- EVENT MODEL -----------------------
+    /**Check if event matches search keyword*/
+    private boolean matchesSearch(Event event, String keyword) {
+        return (event.getEventName() != null && event.getEventName().toLowerCase().contains(keyword)) ||
+                (event.getVenue() != null && event.getVenue().toLowerCase().contains(keyword)) ||
+                (event.getDescription() != null && event.getDescription().toLowerCase().contains(keyword));
+    }
+
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (!showingAIRecommendations) {
+            loadAllEvents(); // Reload events unless showing AI recommendations
+        }
+    }
+
+    /**Event data model representing an event in the system*/
     public static class Event {
         private String id;
         private String eventID;
@@ -393,19 +367,16 @@ public class UserExploreActivity extends AppCompatActivity {
         private String description;
         private String endDateTime;
         private String eventName;
-        private int genderSpec; // Changed to int: 0=Male, 1=Female, 2=None/Any
+        private int genderSpec;
         private String startDateTime;
         private String venue;
         private int currentAttendees;
         private int pax;
-
         private String imageName;
-        public String getImageName() { return imageName; }
-        public void setImageName(String imageName) { this.imageName = imageName; }
 
-        public Event() {} // Needed for Firestore
+        public Event() {}
 
-        // Getters and Setters
+        // Getter and setter methods for all properties
         public String getId() { return id; }
         public void setId(String id) { this.id = id; }
 
@@ -438,11 +409,13 @@ public class UserExploreActivity extends AppCompatActivity {
 
         public int getPax() { return pax; }
         public void setPax(int pax) { this.pax = pax; }
+
+        public String getImageName() { return imageName; }
+        public void setImageName(String imageName) { this.imageName = imageName; }
     }
 
-    // ---------------------- ADAPTER ---------------------------
+    /**RecyclerView adapter for displaying events*/
     private class EventAdapter extends RecyclerView.Adapter<EventAdapter.EventViewHolder> {
-
         private final ArrayList<Event> events;
 
         EventAdapter(ArrayList<Event> events) {
@@ -458,184 +431,150 @@ public class UserExploreActivity extends AppCompatActivity {
 
         @Override
         public void onBindViewHolder(@NonNull EventViewHolder holder, int position) {
-            try {
-                Event event = events.get(position);
-
-                holder.tvEventName.setText(event.getEventName() != null ? event.getEventName() : "Unnamed Event");
-                holder.tvVenue.setText("Venue: " + (event.getVenue() != null ? event.getVenue() : "Not specified"));
-
-                String startTime = event.getStartDateTime() != null ? event.getStartDateTime() : "Not set";
-                String endTime = event.getEndDateTime() != null ? event.getEndDateTime() : "Not set";
-                holder.tvDatetime.setText("Start: " + startTime + "\nEnd: " + endTime);
-
-                holder.tvCapacity.setText(event.getCurrentAttendees() + " / " + event.getPax());
-
-                if (showingAIRecommendations) {
-                    holder.tvAIRecBadge.setVisibility(View.VISIBLE);
-                } else {
-                    holder.tvAIRecBadge.setVisibility(View.GONE);
-                }
-
-                if (event.getCurrentAttendees() >= event.getPax()) {
-                    holder.btnJoin.setText("Full");
-                    holder.btnJoin.setEnabled(false);
-                    holder.btnJoin.setBackgroundTintList(ContextCompat.getColorStateList(UserExploreActivity.this, android.R.color.darker_gray));
-                } else {
-                    checkIfJoined(event, holder.btnJoin);
-                }
-
-                holder.btnJoin.setOnClickListener(v -> joinEvent(event, holder.btnJoin));
-
-                holder.itemView.setOnClickListener(v -> {
-                    Intent intent = new Intent(UserExploreActivity.this, ExploreDetailsActivity.class);
-                    intent.putExtra("eventName", event.getEventName());
-                    intent.putExtra("venue", event.getVenue());
-                    intent.putExtra("startDateTime", event.getStartDateTime());
-                    intent.putExtra("endDateTime", event.getEndDateTime());
-                    intent.putExtra("description", event.getDescription());
-                    intent.putExtra("pax", event.getPax());
-                    intent.putExtra("currentAttendees", event.getCurrentAttendees());
-                    intent.putExtra("imageName", event.getImageName());
-                    startActivity(intent);
-                });
-
-            } catch (Exception e) {
-                Log.e("EventAdapter", "Error binding view holder: " + e.getMessage());
-                e.printStackTrace();
-            }
+            Event event = events.get(position);
+            holder.bind(event);
         }
-
 
         @Override
         public int getItemCount() {
             return events.size();
         }
 
+        /**ViewHolder for event items*/
         class EventViewHolder extends RecyclerView.ViewHolder {
             TextView tvEventName, tvVenue, tvDatetime, tvCapacity, tvAIRecBadge;
             Button btnJoin;
 
             EventViewHolder(@NonNull View itemView) {
                 super(itemView);
-                try {
-                    tvEventName = itemView.findViewById(R.id.tv_event_name);
-                    tvVenue = itemView.findViewById(R.id.tv_event_venue);
-                    tvDatetime = itemView.findViewById(R.id.tv_event_datetime);
-                    tvCapacity = itemView.findViewById(R.id.tv_event_capacity);
-                    btnJoin = itemView.findViewById(R.id.btn_join);
+                // Initialize all view components
+                tvEventName = itemView.findViewById(R.id.tv_event_name);
+                tvVenue = itemView.findViewById(R.id.tv_event_venue);
+                tvDatetime = itemView.findViewById(R.id.tv_event_datetime);
+                tvCapacity = itemView.findViewById(R.id.tv_event_capacity);
+                btnJoin = itemView.findViewById(R.id.btn_join);
+                tvAIRecBadge = itemView.findViewById(R.id.tv_ai_recommendation_badge);
+            }
 
-                    // Add AI recommendation badge - you'll need to add this TextView to your event_item.xml
-                    tvAIRecBadge = itemView.findViewById(R.id.tv_ai_recommendation_badge);
+            /**Bind event data to views*/
+            void bind(Event event) {
+                // Set event information
+                tvEventName.setText(event.getEventName() != null ? event.getEventName() : "Unnamed Event");
+                tvVenue.setText("Venue: " + (event.getVenue() != null ? event.getVenue() : "Not specified"));
 
-                } catch (Exception e) {
-                    Log.e("EventViewHolder", "Error initializing views: " + e.getMessage());
-                    e.printStackTrace();
+                // Format date/time display
+                String startTime = event.getStartDateTime() != null ? event.getStartDateTime() : "Not set";
+                String endTime = event.getEndDateTime() != null ? event.getEndDateTime() : "Not set";
+                tvDatetime.setText("Start: " + startTime + "\nEnd: " + endTime);
+
+                // Display capacity
+                tvCapacity.setText(event.getCurrentAttendees() + " / " + event.getPax());
+
+                // Show AI recommendation badge if applicable
+                tvAIRecBadge.setVisibility(showingAIRecommendations ? View.VISIBLE : View.GONE);
+
+                // Handle join button state
+                if (event.getCurrentAttendees() >= event.getPax()) {
+                    // Event is full
+                    btnJoin.setText("Full");
+                    btnJoin.setEnabled(false);
+                    btnJoin.setBackgroundTintList(ContextCompat.getColorStateList(UserExploreActivity.this, android.R.color.darker_gray));
+                } else {
+                    // Event has space - check if user already joined
+                    checkIfJoined(event, btnJoin);
                 }
+
+                // Set up join button click listener
+                btnJoin.setOnClickListener(v -> joinEvent(event, btnJoin));
+
+                // Set up item click listener for event details
+                itemView.setOnClickListener(v -> openEventDetails(event));
+            }
+
+            /**Open event details screen*/
+            private void openEventDetails(Event event) {
+                Intent intent = new Intent(UserExploreActivity.this, ExploreDetailsActivity.class);
+                // Pass all event data to details activity
+                intent.putExtra("eventName", event.getEventName());
+                intent.putExtra("venue", event.getVenue());
+                intent.putExtra("startDateTime", event.getStartDateTime());
+                intent.putExtra("endDateTime", event.getEndDateTime());
+                intent.putExtra("description", event.getDescription());
+                intent.putExtra("pax", event.getPax());
+                intent.putExtra("currentAttendees", event.getCurrentAttendees());
+                intent.putExtra("imageName", event.getImageName());
+                startActivity(intent);
             }
         }
 
-        // ------------------ CHECK IF USER JOINED ------------------
+        /**Check if current user has already joined the event*/
         private void checkIfJoined(Event event, Button joinButton) {
             String firebaseUid = mAuth.getCurrentUser().getUid();
-            String eventDocId = event.getId(); // Firestore document ID
 
-            // Step 1: Find user's custom userID ("Uxxxxxx")
-            db.collection("user")
-                    .document(firebaseUid)
-                    .get()
+            db.collection("user").document(firebaseUid).get()
                     .addOnSuccessListener(userDoc -> {
                         if (userDoc.exists()) {
                             String customUserID = userDoc.getString("userID");
-                            if (customUserID == null) {
-                                Log.w("EventAdapter", "User missing custom userID field!");
-                                customUserID = firebaseUid; // fallback
-                            }
+                            if (customUserID == null) customUserID = firebaseUid; // Fallback to Firebase UID
 
-                            // Step 2: Check attendance using the custom userID
+                            // Check attendance collection for user's registration
                             db.collection("attendance")
-                                    .whereEqualTo("eventID", event.getEventID())  // if you use custom eventID (Exxxxx)
+                                    .whereEqualTo("eventID", event.getEventID())
                                     .whereEqualTo("userID", customUserID)
                                     .get()
                                     .addOnSuccessListener(querySnapshot -> {
                                         if (!querySnapshot.isEmpty()) {
+                                            // User has already joined
                                             joinButton.setText("Joined");
                                             joinButton.setEnabled(false);
                                             joinButton.setBackgroundTintList(ContextCompat.getColorStateList(UserExploreActivity.this, android.R.color.darker_gray));
                                         } else {
+                                            // User can join
                                             joinButton.setText("Join");
                                             joinButton.setEnabled(true);
                                             joinButton.setBackgroundTintList(ContextCompat.getColorStateList(UserExploreActivity.this, R.color.colorPrimary));
                                         }
-                                    })
-                                    .addOnFailureListener(e ->
-                                            Log.e("EventAdapter", "Error checking attendance: " + e.getMessage()));
+                                    });
                         }
-                    })
-                    .addOnFailureListener(e ->
-                            Log.e("EventAdapter", "Error fetching user custom ID: " + e.getMessage()));
+                    });
         }
 
-
-        // ------------------ JOIN EVENT ------------------
+        /**Handle event joining process*/
         private void joinEvent(Event event, Button joinButton) {
             String firebaseUid = mAuth.getCurrentUser().getUid();
 
-            // Get user’s custom ID (Uxxxx)
-            db.collection("user").document(firebaseUid)
-                    .get()
+            db.collection("user").document(firebaseUid).get()
                     .addOnSuccessListener(userDoc -> {
-                        if (!userDoc.exists()) {
-                            Toast.makeText(UserExploreActivity.this, "User record not found!", Toast.LENGTH_SHORT).show();
-                            return;
-                        }
+                        if (!userDoc.exists()) return;
 
                         String customUserID = userDoc.getString("userID");
-                        if (customUserID == null) {
-                            Toast.makeText(UserExploreActivity.this, "Missing userID in profile!", Toast.LENGTH_SHORT).show();
-                            return;
-                        }
+                        if (customUserID == null) return;
 
-                        String eventDocId = event.getId(); // Firestore doc ID
-                        String eventCustomID = event.getEventID(); // e.g., E1760...
-
-                        // Step 2: Save attendance with eventID = Exxxxx and userID = Uxxxxx
+                        // Create attendance record
                         Map<String, Object> attendance = new HashMap<>();
-                        attendance.put("eventID", eventCustomID); // use the Exxxx one for consistency
-                        attendance.put("userID", customUserID);   // use Uxxxx
+                        attendance.put("eventID", event.getEventID());
+                        attendance.put("userID", customUserID);
 
-                        db.collection("attendance")
-                                .add(attendance)
+                        // Add to attendance collection
+                        db.collection("attendance").add(attendance)
                                 .addOnSuccessListener(docRef -> {
-                                    Log.d("EventAdapter", "Successfully joined event");
-
-                                    // Step 3: Update event count
-                                    DocumentReference eventRef = db.collection("events").document(eventDocId);
+                                    // Update event attendee count
+                                    DocumentReference eventRef = db.collection("events").document(event.getId());
                                     eventRef.update("currentAttendees", event.getCurrentAttendees() + 1)
                                             .addOnSuccessListener(aVoid -> {
+                                                // Update local event object and UI
                                                 event.setCurrentAttendees(event.getCurrentAttendees() + 1);
                                                 joinButton.setText("Joined");
                                                 joinButton.setEnabled(false);
                                                 joinButton.setBackgroundTintList(ContextCompat.getColorStateList(UserExploreActivity.this, android.R.color.darker_gray));
-                                                notifyDataSetChanged();
+                                                notifyDataSetChanged(); // Refresh all items
                                                 Toast.makeText(UserExploreActivity.this, "Joined successfully!", Toast.LENGTH_SHORT).show();
-                                            })
-                                            .addOnFailureListener(e ->
-                                                    Toast.makeText(UserExploreActivity.this, "Joined but failed to update count", Toast.LENGTH_SHORT).show());
+                                            });
                                 })
-                                .addOnFailureListener(e ->
-                                        Toast.makeText(UserExploreActivity.this, "Failed to join: " + e.getMessage(), Toast.LENGTH_SHORT).show());
-                    })
-                    .addOnFailureListener(e ->
-                            Log.e("EventAdapter", "Error fetching user custom ID: " + e.getMessage()));
-        }
-
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        if (!showingAIRecommendations) {
-            loadAllEvents();
+                                .addOnFailureListener(e -> {
+                                    Toast.makeText(UserExploreActivity.this, "Failed to join", Toast.LENGTH_SHORT).show();
+                                });
+                    });
         }
     }
 }
