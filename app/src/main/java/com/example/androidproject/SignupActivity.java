@@ -90,7 +90,30 @@ public class SignupActivity extends AppCompatActivity {
         if (name.isEmpty()) { setErr(etName, "Name is required"); return; }
         if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) { setErr(etEmail, "Enter a valid email"); return; }
         if (phoneNum.replaceAll("\\D", "").length() < 9) { setErr(etPhoneNum, "Enter a valid phone number"); return; }
-        if (password.length() < 6) { setErr(etPassword, "Password must be at least 6 characters"); return; }
+
+        // Enhanced strong password validation
+        if (password.length() < 8) {
+            setErr(etPassword, "Password must be at least 8 characters");
+            return;
+        }
+
+        // Check password strength
+        boolean hasUpperCase = !password.equals(password.toLowerCase());
+        boolean hasLowerCase = !password.equals(password.toUpperCase());
+        boolean hasDigit = password.matches(".*\\d.*");
+
+        if (!hasUpperCase) {
+            setErr(etPassword, "Password must contain at least one uppercase letter");
+            return;
+        }
+        if (!hasLowerCase) {
+            setErr(etPassword, "Password must contain at least one lowercase letter");
+            return;
+        }
+        if (!hasDigit) {
+            setErr(etPassword, "Password must contain at least one number");
+            return;
+        }
         if (!password.equals(confirm)) { setErr(etConfirm, "Passwords do not match"); return; }
         if (description.isEmpty()) { setErr(etDescription, "Description is required"); return; }
         if (!chkTerms.isChecked()) { toast("Please accept Terms and Privacy"); return; }
