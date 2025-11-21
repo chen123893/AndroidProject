@@ -244,7 +244,7 @@ public class UserTimetableActivity extends AppCompatActivity {
                         return;
                     }
 
-                    // Step 2️2 - find all events the user joined
+                    // Step 2 - find all events the user joined
                     db.collection("attendance")
                             .whereEqualTo("userID", customUserID)
                             .get()
@@ -272,7 +272,7 @@ public class UserTimetableActivity extends AppCompatActivity {
                                                         Event event = parseEventFromDocument(eventDoc);
                                                         if (event != null) {
 
-                                                            // Step 44⃣ - fetch live attendee count
+                                                            // Step 4 - fetch live attendee count
                                                             db.collection("attendance")
                                                                     .whereEqualTo("eventID", event.getEventID())
                                                                     .get()
