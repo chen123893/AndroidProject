@@ -254,6 +254,7 @@ public class UserProfileActivity extends AppCompatActivity {
                 .into(profilePic);
     }
 
+    //user choose pic and return
     private int avatarResForKey(String key) {
         if (key == null) return R.drawable.default_pfp;
         switch (key.toLowerCase()) {
@@ -360,6 +361,7 @@ public class UserProfileActivity extends AppCompatActivity {
         showImageSelectionDialog();
     }
 
+    //dialog profile pic
     private void showImageSelectionDialog() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Choose Profile Picture");
