@@ -54,7 +54,7 @@ public class AdminProfileActivity extends AppCompatActivity {
         return Math.round(v * getResources().getDisplayMetrics().density);
     }
 
-    // Local profile images (same as user profile)
+
     private final List<Integer> LOCAL_PROFILE_IMAGES = Arrays.asList(
             R.drawable.default_pfp,
             R.drawable.profile1,
@@ -73,8 +73,7 @@ public class AdminProfileActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_admin_profile);
-
-        // Initialize Firebase
+        
         mAuth = FirebaseAuth.getInstance();
         db = FirebaseFirestore.getInstance();
         FirebaseUser currentUser = mAuth.getCurrentUser();
@@ -85,18 +84,14 @@ public class AdminProfileActivity extends AppCompatActivity {
         }
 
         currentUserId = currentUser.getUid();
-        currentCollection = "admin"; // Admin profiles are always in "admin" collection
-
-        // Initialize views
+        currentCollection = "admin";
+        
         initializeViews();
-
-        // Load admin data
+        
         loadAdminData();
-
-        // Setup button listeners
+        
         setupButtonListeners();
-
-        // Setup bottom navigation
+        
         setupBottomNavigation();
     }
 
@@ -114,18 +109,16 @@ public class AdminProfileActivity extends AppCompatActivity {
         btnCancel = findViewById(R.id.btnCancel);
         btnLogout = findViewById(R.id.btnLogout);
         profilePic = findViewById(R.id.profilePic);
-
-        // Make profile image clickable
+        
         profilePic.setClickable(true);
         profilePic.setFocusable(true);
-
-        // Initially disable all fields except profile image functionality
+        
         setEditMode(false);
-
-        // Profile image button is always enabled
+        
         btnEditPic.setEnabled(true);
     }
 
+    //edit mode
     private void setEditMode(boolean enabled) {
         isEditMode = enabled;
 
@@ -136,8 +129,7 @@ public class AdminProfileActivity extends AppCompatActivity {
         radioFemale.setEnabled(enabled);
         etPassword.setEnabled(enabled);
         btnUpdate.setEnabled(enabled);
-
-        // Show/hide buttons based on mode
+        
         if (enabled) {
             btnEditProfile.setVisibility(Button.GONE);
             btnCancel.setVisibility(Button.VISIBLE);
@@ -146,10 +138,10 @@ public class AdminProfileActivity extends AppCompatActivity {
             btnEditProfile.setVisibility(Button.VISIBLE);
             btnCancel.setVisibility(Button.GONE);
             btnUpdate.setVisibility(Button.GONE);
-            // Clear password field when exiting edit mode
             etPassword.setText("");
         }
     }
+
 
     private void loadAdminData() {
         Log.d("AdminProfile", "Loading data for admin UID: " + currentUserId);
@@ -183,17 +175,14 @@ public class AdminProfileActivity extends AppCompatActivity {
             if (email != null) etEmail.setText(email);
             if (phone != null) etPhone.setText(phone);
 
-            // Store original data for cancel functionality
             originalData.put("name", name != null ? name : "");
             originalData.put("email", email != null ? email : "");
             originalData.put("phone", phone != null ? phone : "");
             originalData.put("gender", gender != null ? gender : 1);
             originalData.put("profilePic", profilePicRef != null ? profilePicRef : "");
-
-            // Load profile picture from local resources
+            
             loadProfileImage(profilePicRef);
-
-            // Set gender
+            
             if (gender != null) {
                 if (gender == 1) {
                     radioMale.setChecked(true);
@@ -259,29 +248,27 @@ public class AdminProfileActivity extends AppCompatActivity {
     }
 
     private void setupButtonListeners() {
-        // Profile picture click listener - ALWAYS enabled
         profilePic.setOnClickListener(v -> openImageChooser());
-
-        // Edit picture button listener - ALWAYS enabled
+        
         btnEditPic.setOnClickListener(v -> openImageChooser());
 
-        // Edit profile button listener - for profile data only
         btnEditProfile.setOnClickListener(v -> enableEditMode());
 
-        // Cancel button listener
         btnCancel.setOnClickListener(v -> cancelEditMode());
 
         btnUpdate.setOnClickListener(v -> updateProfile());
         btnLogout.setOnClickListener(v -> logoutUser());
     }
 
+    //enable edit
     private void enableEditMode() {
         setEditMode(true);
         Toast.makeText(this, "You can now edit your profile data", Toast.LENGTH_SHORT).show();
     }
 
+    //cancel edit
     private void cancelEditMode() {
-        // Restore original data
+
         etName.setText((String) originalData.get("name"));
         etPhone.setText((String) originalData.get("phone"));
 
@@ -294,7 +281,6 @@ public class AdminProfileActivity extends AppCompatActivity {
             }
         }
 
-        // Restore original profile picture
         String originalProfilePic = (String) originalData.get("profilePic");
         loadProfileImage(originalProfilePic);
 
@@ -303,6 +289,7 @@ public class AdminProfileActivity extends AppCompatActivity {
         Toast.makeText(this, "Changes cancelled", Toast.LENGTH_SHORT).show();
     }
 
+    //to choose profile pic
     private void openImageChooser() {
         showImageSelectionDialog();
     }
@@ -311,13 +298,12 @@ public class AdminProfileActivity extends AppCompatActivity {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Choose Profile Picture");
 
-        // Create a GridLayout for the images
         GridLayout gridLayout = new GridLayout(this);
         gridLayout.setUseDefaultMargins(false);
         gridLayout.setAlignmentMode(GridLayout.ALIGN_BOUNDS);
-        gridLayout.setPadding(dp(16), dp(16), dp(16), dp(16)); // smaller outer padding
+        gridLayout.setPadding(dp(16), dp(16), dp(16), dp(16));
 
-// Screen info
+
         DisplayMetrics dm = new DisplayMetrics();
         getWindowManager().getDefaultDisplay().getMetrics(dm);
         int screenWidth = dm.widthPixels;
@@ -352,19 +338,19 @@ public class AdminProfileActivity extends AppCompatActivity {
 
             ImageView imageView = new ImageView(this);
             LinearLayout.LayoutParams iLp = new LinearLayout.LayoutParams(
-                    itemWidth - dp(28),   // slightly smaller to fit
+                    itemWidth - dp(28),
                     itemWidth - dp(28)
             );
             imageView.setLayoutParams(iLp);
             imageView.setScaleType(ImageView.ScaleType.CENTER_CROP);
 
-            // Load image with Glide
+
             Glide.with(this)
                     .load(imageResId)
                     .circleCrop()
                     .into(imageView);
 
-            // Create text view for image name
+
             TextView textView = new TextView(this);
             LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -381,18 +367,16 @@ public class AdminProfileActivity extends AppCompatActivity {
             container.addView(imageView);
             container.addView(textView);
 
-            // Set click listener
+
             container.setOnClickListener(v -> {
-                // Update profile picture
                 Glide.with(AdminProfileActivity.this)
                         .load(imageResId)
                         .circleCrop()
                         .into(profilePic);
 
-                // Save to Firestore
+
                 saveSelectedImageToFirestore(imageName);
 
-                // Dismiss dialog
                 ((AlertDialog) v.getTag()).dismiss();
 
                 Toast.makeText(AdminProfileActivity.this, "Profile image updated to: " + imageName, Toast.LENGTH_SHORT).show();
@@ -406,27 +390,26 @@ public class AdminProfileActivity extends AppCompatActivity {
 
         AlertDialog dialog = builder.create();
 
-        // Set dialog as tag for all clickable views
         for (int i = 0; i < gridLayout.getChildCount(); i++) {
             gridLayout.getChildAt(i).setTag(dialog);
         }
 
         dialog.show();
 
-        // Set dialog window size
         Window window = dialog.getWindow();
         if (window != null) {
             window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         }
     }
 
+    //update image to firestore
     private void saveSelectedImageToFirestore(String imageName) {
         db.collection(currentCollection)
                 .document(currentUserId)
                 .update("profilePic", imageName)
                 .addOnSuccessListener(aVoid -> {
                     Log.d("AdminProfile", "Profile image reference saved: " + imageName);
-                    // Update original data
+
                     originalData.put("profilePic", imageName);
                 })
                 .addOnFailureListener(e -> {
@@ -470,6 +453,7 @@ public class AdminProfileActivity extends AppCompatActivity {
         Toast.makeText(this, "Logged out successfully", Toast.LENGTH_SHORT).show();
     }
 
+    //update profile
     private void updateProfile() {
         String name = etName.getText().toString().trim();
         String phone = etPhone.getText().toString().trim();

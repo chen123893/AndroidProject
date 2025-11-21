@@ -49,7 +49,7 @@ public class ViewListActivity extends AppCompatActivity {
 
         loadAttendees();
 
-        // Bottom Navigation setup
+
         BottomNavigationView bottomNav = findViewById(R.id.bottom_navigation);
         bottomNav.setSelectedItemId(R.id.nav_my_events);
         bottomNav.setOnItemSelectedListener(item -> {
@@ -100,7 +100,6 @@ public class ViewListActivity extends AppCompatActivity {
 
                     Log.d("ViewListActivity", "Found " + snapshot.size() + " attendance records");
 
-                    // Loop through all attendance documents
                     for (QueryDocumentSnapshot attendanceDoc : snapshot) {
                         String attendanceDocID = attendanceDoc.getId();
                         String userID = attendanceDoc.getString("userID");
@@ -136,6 +135,7 @@ public class ViewListActivity extends AppCompatActivity {
                 });
     }
 
+    //to view each attendee
     private void addAttendeeCard(DocumentSnapshot userDoc, String attendanceDocID) {
         View attendeeCard = getLayoutInflater().inflate(R.layout.item_attendee_card, attendeesContainer, false);
 
@@ -144,7 +144,6 @@ public class ViewListActivity extends AppCompatActivity {
         TextView emailView = attendeeCard.findViewById(R.id.email);
         ImageButton removeBtn = attendeeCard.findViewById(R.id.remove_button);
 
-        // Get fields safely
         String name = userDoc.getString("name");
         String email = userDoc.getString("email");
         String profileVal = userDoc.getString("profilePic");
@@ -152,7 +151,7 @@ public class ViewListActivity extends AppCompatActivity {
         Long genderValue = userDoc.getLong("gender");
         String genderText = (genderValue != null && genderValue == 1) ? "Male" : "Female";
 
-        // Populate fields
+
         usernameView.setText("Name: " + (name != null ? name : "Unknown"));
         emailView.setText(
                 "Email: " + (email != null ? email : "N/A") +
@@ -184,7 +183,7 @@ public class ViewListActivity extends AppCompatActivity {
     }
 
     private int avatarResForKey(String key) {
-        if (key == null) return R.drawable.default_pfp; // default
+        if (key == null) return R.drawable.default_pfp;
         switch (key.toLowerCase()) {
             case "profile1": return R.drawable.profile1;
             case "profile2": return R.drawable.profile2;

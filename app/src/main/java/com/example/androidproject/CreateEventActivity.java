@@ -49,7 +49,7 @@ public class CreateEventActivity extends AppCompatActivity {
     private final ArrayList<Integer> IMAGE_RES_IDS = new ArrayList<>();
 
     private String selectedImageName = null;
-    private int selectedImageResId = 0; // 0 = none chosen yet
+    private int selectedImageResId = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -62,7 +62,6 @@ public class CreateEventActivity extends AppCompatActivity {
         endCalendar.add(Calendar.HOUR, 2);
         dateTimeFormatter = new SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault());
 
-        // Views
         eventName = findViewById(R.id.eventName);
         venue = findViewById(R.id.venue);
         startDateTime = findViewById(R.id.startDateTime);
@@ -75,18 +74,15 @@ public class CreateEventActivity extends AppCompatActivity {
         selectedImageView = findViewById(R.id.selectedImageView);
         tvTapHint = findViewById(R.id.tvTapHint);
 
-        setupImageCatalog();       // fill lists only (no default selection)
+        setupImageCatalog();
         setupDateTimePickers();
 
-        // Start state: no image, hint visible
         applySelectedImageUI();
 
-        // Open built-in chooser
         selectImageBtn.setOnClickListener(v -> openBuiltinImageChooser());
 
         createBtn.setOnClickListener(v -> createEvent());
 
-        // Bottom navigation
         BottomNavigationView bottomNav = findViewById(R.id.bottom_navigation);
         bottomNav.setSelectedItemId(R.id.nav_create_event);
         bottomNav.setOnItemSelectedListener(item -> {
@@ -108,8 +104,8 @@ public class CreateEventActivity extends AppCompatActivity {
         });
     }
 
+    //image picker
     private void setupImageCatalog() {
-        // Add entries: (label shown to user, drawable resource)
         IMAGE_NAMES.add("Badminton");
         IMAGE_RES_IDS.add(R.drawable.event_badminton);
 
@@ -188,18 +184,16 @@ public class CreateEventActivity extends AppCompatActivity {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Choose Event Image");
 
-        // Root with inner padding so cards don’t touch rounded edges
+
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         int hPad = dp(16), vPad = dp(8);
         root.setPadding(hPad, vPad, hPad, vPad);
         root.setClipToPadding(false); root.setClipChildren(false);
 
-        // Scroll (prevents vertical crop)
         android.widget.ScrollView scroller = new android.widget.ScrollView(this);
         scroller.setFillViewport(true);
 
-        // Grid
         GridLayout grid = new GridLayout(this);
         grid.setUseDefaultMargins(false);
         grid.setAlignmentMode(GridLayout.ALIGN_BOUNDS);
@@ -275,7 +269,6 @@ public class CreateEventActivity extends AppCompatActivity {
 
         AlertDialog dialog = builder.create();
 
-        // Tag dialog on each card so we can dismiss on click
         grid.post(() -> {
             for (int i = 0; i < grid.getChildCount(); i++) {
                 grid.getChildAt(i).setTag(dialog);
@@ -284,7 +277,6 @@ public class CreateEventActivity extends AppCompatActivity {
 
         dialog.show();
 
-        // Apply the computed dialog width
         Window w = dialog.getWindow();
         if (w != null) {
             w.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -299,12 +291,12 @@ public class CreateEventActivity extends AppCompatActivity {
             if (tvTapHint != null) tvTapHint.setVisibility(TextView.VISIBLE);
             return;
         }
-        // show only the image
         Glide.with(this).load(selectedImageResId).into(selectedImageView);
         selectedImageView.setVisibility(ImageView.VISIBLE);
         if (tvTapHint != null) tvTapHint.setVisibility(TextView.GONE);
     }
 
+    //create event
     private void createEvent() {
         String name = eventName.getText().toString().trim();
         String loc = venue.getText().toString().trim();
@@ -323,7 +315,7 @@ public class CreateEventActivity extends AppCompatActivity {
             return;
         }
 
-        int genderCode = 2; // 0=male,1=female,2=none
+        int genderCode = 2;
         int selectedId = genderGroup.getCheckedRadioButtonId();
         if (selectedId == R.id.male) genderCode = 1;
         else if (selectedId == R.id.female) genderCode = 0;
@@ -342,7 +334,6 @@ public class CreateEventActivity extends AppCompatActivity {
         event.put("genderSpec", genderCode);
         event.put("currentAttendees", 0);
 
-        // Only save image info if the user actually picked one
         if (selectedImageResId != 0) {
             String resKey = getResources().getResourceEntryName(selectedImageResId);
             event.put("imageName", resKey);
@@ -358,7 +349,6 @@ public class CreateEventActivity extends AppCompatActivity {
             return;
         }
 
-        // Fetch adminID and save
         db.collection("admin")
                 .document(adminUid)
                 .get()
@@ -388,6 +378,7 @@ public class CreateEventActivity extends AppCompatActivity {
                         Toast.makeText(this, "Failed to fetch adminID: " + e.getMessage(), Toast.LENGTH_SHORT).show());
     }
 
+    //clear all fields
     private void clearFields() {
         eventName.setText("");
         venue.setText("");
@@ -397,12 +388,10 @@ public class CreateEventActivity extends AppCompatActivity {
         description.setText("");
         genderGroup.check(R.id.none);
 
-        // Reset date state
         startCalendar = Calendar.getInstance();
         endCalendar = Calendar.getInstance();
         endCalendar.add(Calendar.HOUR, 2);
 
-        // Reset image selection UI
         selectedImageName = null;
         selectedImageResId = 0;
         applySelectedImageUI();

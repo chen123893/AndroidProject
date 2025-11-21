@@ -34,7 +34,6 @@ public class MyEventsActivity extends AppCompatActivity {
 
         loadEvents();
 
-        // Bottom Navigation setup
         BottomNavigationView bottomNav = findViewById(R.id.bottom_navigation);
         bottomNav.setSelectedItemId(R.id.nav_my_events);
         bottomNav.setOnItemSelectedListener(item -> {
@@ -58,7 +57,6 @@ public class MyEventsActivity extends AppCompatActivity {
     private void loadEvents() {
         String adminUid = FirebaseAuth.getInstance().getCurrentUser().getUid();
 
-        // Fetch adminID (e.g., "A001") first
         db.collection("admin")
                 .document(adminUid)
                 .get()
@@ -83,7 +81,6 @@ public class MyEventsActivity extends AppCompatActivity {
                                         for (QueryDocumentSnapshot eventDoc : querySnapshot) {
                                             View eventCard = inflater.inflate(R.layout.item_event_card, eventsContainer, false);
 
-                                            // Bind layout views
                                             TextView name = eventCard.findViewById(R.id.tvEventName);
                                             TextView venue = eventCard.findViewById(R.id.tvVenue);
                                             TextView startEnd = eventCard.findViewById(R.id.tvStartEndTime);
@@ -91,7 +88,6 @@ public class MyEventsActivity extends AppCompatActivity {
                                             Button viewBtn = eventCard.findViewById(R.id.btnViewList);
                                             Button editBtn = eventCard.findViewById(R.id.btnEditEvent);
 
-                                            // Retrieve Firestore fields
                                             String eventName = eventDoc.getString("eventName");
                                             String eventVenue = eventDoc.getString("venue");
                                             String eventStart = eventDoc.getString("startDateTime");
@@ -99,7 +95,6 @@ public class MyEventsActivity extends AppCompatActivity {
                                             String eventID = eventDoc.getString("eventID");
                                             Long maxPax = eventDoc.getLong("pax");
 
-                                            // Display base data
                                             name.setText(eventName != null ? eventName : "Unnamed Event");
                                             venue.setText(eventVenue != null ? "Venue: " + eventVenue : "Venue: N/A");
                                             if (eventStart != null && eventEnd != null) {
@@ -108,7 +103,6 @@ public class MyEventsActivity extends AppCompatActivity {
                                                 startEnd.setText("Date/time not set");
                                             }
 
-                                            // Count attendees dynamically from attendance collection
                                             if (eventID != null) {
                                                 AggregateQuery countQuery = db.collection("attendance")
                                                         .whereEqualTo("eventID", eventID)
@@ -125,14 +119,13 @@ public class MyEventsActivity extends AppCompatActivity {
 
                                             }
 
-                                            // View attendee list
+
                                             viewBtn.setOnClickListener(v -> {
                                                 Intent intent = new Intent(MyEventsActivity.this, ViewListActivity.class);
                                                 intent.putExtra("eventID", eventID);
                                                 startActivity(intent);
                                             });
 
-                                            // Edit event
                                             editBtn.setOnClickListener(v -> {
                                                 Intent intent = new Intent(MyEventsActivity.this, EditEventActivity.class);
                                                 intent.putExtra("eventID", eventID);

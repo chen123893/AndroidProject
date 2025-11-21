@@ -53,18 +53,16 @@ public class EditEventActivity extends AppCompatActivity {
     private Calendar startCalendar, endCalendar;
     private SimpleDateFormat dateTimeFormatter;
 
-    // EmailJS (unchanged)
+    // EmailJS
     private static final String EMAILJS_SERVICE_ID = "service_bj4nogo";
     private static final String EMAILJS_TEMPLATE_ID = "template_e82chx6";
     private static final String EMAILJS_PUBLIC_KEY = "hxbMOwE1NOOZ8DY3u";
-
-    // --- Built-in image catalog (same as Create) ---
+    
     private final ArrayList<String> IMAGE_NAMES = new ArrayList<>();
     private final ArrayList<Integer> IMAGE_RES_IDS = new ArrayList<>();
-
-    // Selection state
+    
     private String selectedImageName = null;
-    private int selectedImageResId = 0; // 0 = none
+    private int selectedImageResId = 0; 
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -93,8 +91,7 @@ public class EditEventActivity extends AppCompatActivity {
 
         startCalendar = Calendar.getInstance();
         endCalendar = Calendar.getInstance();
-
-        // Prepare image catalog
+        
         setupImageCatalog();
 
         eventID = getIntent().getStringExtra("eventID");
@@ -106,23 +103,18 @@ public class EditEventActivity extends AppCompatActivity {
 
         loadEventData();
         setupDateTimePickers();
-
-        // Image picker
+        
         selectImageBtn.setOnClickListener(v -> openBuiltinImageChooser());
-
-        // Save
+        
         saveBtn.setOnClickListener(v -> showNotifyDialog());
-
-        // Delete
+        
         deleteBtn.setOnClickListener(v -> confirmDelete());
 
-        // Back
         backBtn.setOnClickListener(v -> {
             startActivity(new Intent(EditEventActivity.this, MyEventsActivity.class));
             finish();
         });
 
-        // Bottom Navigation
         BottomNavigationView bottomNav = findViewById(R.id.bottom_navigation);
         bottomNav.setSelectedItemId(R.id.nav_my_events);
         bottomNav.setOnItemSelectedListener(item -> {
@@ -194,32 +186,27 @@ public class EditEventActivity extends AppCompatActivity {
                             else genderGroup.check(R.id.none);
                         }
 
-                        // Load imageName -> set preview
+
                         String rawImage = firstNonEmpty(
-                                (String) data.get("imageName"),   // preferred
+                                (String) data.get("imageName"),
                                 (String) data.get("imageResKey")
                         );
 
-// If nothing found, just apply default UI and return
                         if (rawImage == null) {
                             applySelectedImageUI();
                         } else {
-                            // Try resolve against your built-in catalog labels
                             Integer resId = resolveResForName(rawImage);
                             if (resId != null && resId != 0) {
-                                // Found a drawable in the catalog → preview it
                                 selectedImageName = rawImage;
                                 selectedImageResId = resId;
                                 applySelectedImageUI();
                             } else if (rawImage.startsWith("http://") || rawImage.startsWith("https://")) {
-                                // It's a URL (e.g., Cloudinary) → load via Glide
                                 selectedImageName = rawImage;
                                 selectedImageResId = 0;
                                 Glide.with(this).load(rawImage).into(selectedImageView);
                                 selectedImageView.setVisibility(ImageView.VISIBLE);
                                 if (tvTapHint != null) tvTapHint.setVisibility(TextView.GONE);
                             } else {
-                                // Not a catalog label and not a URL → hide preview gracefully
                                 selectedImageName = null;
                                 selectedImageResId = 0;
                                 selectedImageView.setVisibility(ImageView.GONE);
@@ -261,7 +248,7 @@ public class EditEventActivity extends AppCompatActivity {
                 return IMAGE_RES_IDS.get(i);
             }
         }
-        // Bonus: if a drawable key was saved (e.g., "event_badminton"), try that too
+
         try {
             int id = getResources().getIdentifier(key, "drawable", getPackageName());
             if (id != 0) return id;
@@ -301,11 +288,11 @@ public class EditEventActivity extends AppCompatActivity {
         timePicker.show();
     }
 
-    // ---------- Image chooser (same UX as Create) ----------
     private int dp(int value) {
         return Math.round(value * getResources().getDisplayMetrics().density);
     }
 
+    //change image
     private void openBuiltinImageChooser() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Choose Event Image");
@@ -319,7 +306,6 @@ public class EditEventActivity extends AppCompatActivity {
         android.widget.ScrollView scroller = new android.widget.ScrollView(this);
         scroller.setFillViewport(true);
 
-        // Grid
         GridLayout grid = new GridLayout(this);
         grid.setUseDefaultMargins(false);
         grid.setAlignmentMode(GridLayout.ALIGN_BOUNDS);
@@ -419,8 +405,8 @@ public class EditEventActivity extends AppCompatActivity {
         selectedImageView.setVisibility(ImageView.VISIBLE);
         if (tvTapHint != null) tvTapHint.setVisibility(TextView.GONE);
     }
-    // ------------------------------------------------------
 
+    //pop up asking if wanna notify attendees
     private void showNotifyDialog() {
         new AlertDialog.Builder(this)
                 .setTitle("Notify Attendees?")
@@ -456,13 +442,13 @@ public class EditEventActivity extends AppCompatActivity {
                     if (!querySnapshot.isEmpty()) {
                         String docId = querySnapshot.getDocuments().get(0).getId();
 
-                        // build update map
-                        com.google.firebase.firestore.FieldValue fv; // (placeholder to keep imports tidy if needed)
+
+                        com.google.firebase.firestore.FieldValue fv;
 
                         com.google.firebase.firestore.DocumentReference ref =
                                 db.collection("events").document(docId);
 
-                        // update fields (including imageName if changed/selected)
+
                         com.google.firebase.firestore.SetOptions merge = com.google.firebase.firestore.SetOptions.merge();
                         java.util.HashMap<String, Object> update = new java.util.HashMap<>();
                         update.put("eventName", name);
@@ -553,7 +539,6 @@ public class EditEventActivity extends AppCompatActivity {
                     }
                     String docId = eventSnap.getDocuments().get(0).getId();
 
-                    // batch: delete attendance docs, then event
                     db.collection("attendance").whereEqualTo("eventID", eventID)
                             .get()
                             .addOnSuccessListener(attSnap -> {
@@ -583,7 +568,7 @@ public class EditEventActivity extends AppCompatActivity {
         finish();
     }
 
-    // EmailJS send
+    // EmailJS
     private void sendEmailToAttendee(String email, String name, String venue, String start, String end, String paxNum) {
         new Thread(() -> {
             try {
