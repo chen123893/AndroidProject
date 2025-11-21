@@ -255,7 +255,6 @@ public class SignupActivity extends AppCompatActivity {
                 .addOnFailureListener(e -> {
                     setLoading(false);
                     toast("Failed to create profile: " + e.getMessage());
-                    // Keep user signed in; you may signOut() if you want.
                 });
     }
 
